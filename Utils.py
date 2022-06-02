@@ -29,43 +29,26 @@ def load_problem(file):
             else:
                 cc = [ca[c]]
             for num in cc:
+                const = {'max': int(num['@max']),
+                         'min': int(num['@min']),
+                         'penalty': int(num['@penalty'])}
+                if '@teams' in num.keys() :
+                    const['teams'] = [int(x) for x in num['@teams'].split(';')]
+                else:
+                    const['teams1'] = [int(x) for x in num['@teams1'].split(';')]
+                    const['teams2'] = [int(x) for x in num['@teams2'].split(';')]
+                if '@mode' in num.keys() :
+                    const['mode']= num['@mode']
+                else:
+                    const['mode1']= num['@mode1']
+                    const['mode2']= num['@mode2']
+                if '@slots' in num.keys() :
+                    const['slots'] = [int(x) for x in num['@slots'].split(';')]
+                if '@intp' in num.keys() :
+                    const['intp'] = int(num['@intp'])
                 if num['@type'] == 'HARD':
-                    const = {'max': int(num['@max']),
-                             'min': int(num['@min']),
-                             'penalty': int(num['@penalty'])}
-                    if '@teams' in num.keys() :
-                        const['teams'] = [int(x) for x in num['@teams'].split(';')]
-                    else:
-                        const['teams1'] = [int(x) for x in num['@teams1'].split(';')]
-                        const['teams2'] = [int(x) for x in num['@teams2'].split(';')]
-                    if '@mode' in num.keys() :
-                        const['mode']= num['@mode']
-                    else:
-                        const['mode1']= num['@mode1']
-                        const['mode2']= num['@mode2']
-                    if '@slots' in num.keys() :
-                        const['slots'] = [int(x) for x in num['@slots'].split(';')]
-                    if '@intp' in num.keys() :
-                        const['intp'] = int(num['@intp'])
                     ca_hard[i].append(const)
                 else:
-                    const = {'max': int(num['@max']),
-                             'min': int(num['@min']),
-                             'penalty': int(num['@penalty'])}
-                    if '@teams' in num.keys() :
-                        const['teams'] = [int(x) for x in num['@teams'].split(';')]
-                    else:
-                        const['teams1'] = [int(x) for x in num['@teams1'].split(';')]
-                        const['teams2'] = [int(x) for x in num['@teams2'].split(';')]
-                    if '@mode' in num.keys() :
-                        const['mode']= num['@mode']
-                    else:
-                        const['mode1']= num['@mode1']
-                        const['mode2']= num['@mode2']
-                    if '@slots' in num.keys() :
-                        const['slots'] = [int(x) for x in num['@slots'].split(';')]
-                    if '@intp' in num.keys() :
-                        const['intp'] = int(num['@intp'])
                     ca_soft[i].append(const)
     
     #Game Constraints
@@ -81,19 +64,14 @@ def load_problem(file):
             else:
                 ga1 = [ga[g]]
             for num in ga1:
+                const = {'meetings': [[int(y),int(z)] for y,z in (x.split(',') for x in num['@meetings'].split(';') if x)],
+                         'slots': [int(x) for x in num['@slots'].split(';')],
+                         'max': int(num['@max']),
+                         'min': int(num['@min']),
+                         'penalty': int(num['@penalty'])}
                 if num['@type'] == 'HARD':
-                    const = {'meetings': [[int(y),int(z)] for y,z in (x.split(',') for x in num['@meetings'].split(';') if x)],
-                             'slots': [int(x) for x in num['@slots'].split(';')],
-                             'max': int(num['@max']),
-                             'min': int(num['@min']),
-                             'penalty': int(num['@penalty'])}
                     ga_hard[i].append(const)
                 else:
-                    const = {'meetings': [[int(y),int(z)] for y,z in (x.split(',') for x in num['@meetings'].split(';') if x)],
-                             'slots': [int(x) for x in num['@slots'].split(';')],
-                             'max': int(num['@max']),
-                             'min': int(num['@min']),
-                             'penalty': int(num['@penalty'])}
                     ga_soft[i].append(const)
     #Break Constraints
     ba = data_dict['Instance']['Constraints']['BreakConstraints']
@@ -108,27 +86,18 @@ def load_problem(file):
             else:
                 bc = [ba[b]]
             for num in bc:
+                const = {'teams': [int(x) for x in num['@teams'].split(';')],
+                         'slots': [int(x) for x in num['@slots'].split(';')],
+                         'intp': int(num['@intp']),
+                         'mode2': num['@mode2'],
+                         'penalty': int(num['@penalty'])}
+                if '@mode1' in num.keys():
+                    const['mode1'] = num['@mode1']
+                elif '@homeMode' in num.keys():
+                    const['homeMode'] = num['@homeMode']
                 if num['@type'] == 'HARD':
-                    const = {'teams': [int(x) for x in num['@teams'].split(';')],
-                             'slots': [int(x) for x in num['@slots'].split(';')],
-                             'intp': int(num['@intp']),
-                             'mode2': num['@mode2'],
-                             'penalty': int(num['@penalty'])}
-                    if '@mode1' in num.keys():
-                        const['mode1'] = num['@mode1']
-                    elif '@homeMode' in num.keys():
-                        const['homeMode'] = num['@homeMode']
                     ba_hard[i].append(const)
                 else:
-                    const = {'teams': [int(x) for x in num['@teams'].split(';')],
-                             'slots': [int(x) for x in num['@slots'].split(';')],
-                             'intp': int(num['@intp']),
-                             'mode2': num['@mode2'],
-                             'penalty': int(num['@penalty'])}
-                    if '@mode1' in num.keys():
-                        const['mode1'] = num['@mode1']
-                    elif '@homeMode' in num.keys():
-                        const['homeMode'] = num['@homeMode']
                     ba_soft[i].append(const)
     #Fairness Constraints
     fa = data_dict['Instance']['Constraints']['FairnessConstraints']
@@ -144,19 +113,14 @@ def load_problem(file):
             else:
                 fc = [fa[f]]
             for num in fc:
+                const = {'teams': [int(x) for x in num['@teams'].split(';')],
+                         'slots': [int(x) for x in num['@slots'].split(';')],
+                         'intp': int(num['@intp']),
+                         'mode': num['@mode'],
+                         'penalty': int(num['@penalty'])}
                 if num['@type'] == 'HARD':
-                    const = {'teams': [int(x) for x in num['@teams'].split(';')],
-                             'slots': [int(x) for x in num['@slots'].split(';')],
-                             'intp': int(num['@intp']),
-                             'mode': num['@mode'],
-                             'penalty': int(num['@penalty'])}
                     fa_hard[i].append(const)
                 else:
-                    const = {'teams': [int(x) for x in num['@teams'].split(';')],
-                             'slots': [int(x) for x in num['@slots'].split(';')],
-                             'intp': int(num['@intp']),
-                             'mode': num['@mode'],
-                             'penalty': int(num['@penalty'])}
                     fa_soft[i].append(const)
     #Separation Constraints
     sa = data_dict['Instance']['Constraints']['SeparationConstraints'] 
@@ -171,16 +135,13 @@ def load_problem(file):
             else:
                 sc = [sa[s]]
             for num in sc:
+                const = {'teams': list(combinations([int(x) for x in num['@teams'].split(';')],2)),
+                         'min': int(num['@min']),
+                         'mode1': num['@mode1'],
+                         'penalty': int(num['@penalty'])}
                 if num['@type'] == 'HARD':
-                    const = {'teams': list(combinations([int(x) for x in num['@teams'].split(';')],2)),
-                             'min': int(num['@min']),
-                             'mode1': num['@mode1']}
                     sa_hard[i].append(const)
                 else:
-                    const = {'teams': list(combinations([int(x) for x in num['@teams'].split(';')],2)),
-                             'min': int(num['@min']),
-                             'mode1': num['@mode1'],
-                             'penalty': int(num['@penalty'])}
                     sa_soft[i].append(const)
     output = {
         'feas_constr':{'ca': ca_hard,
@@ -577,7 +538,7 @@ def load_solution(file, sol):
     for game in Games:
         sol[int(game['@home']), int(game['@away'])] = int(game['@slot'])
     return sol, objective_value
-problem = load_problem('Instances//EarlyInstances_V3//ITC2021_Early_1.xml')
+problem = load_problem('Instances//EarlyInstances_V3//ITC2021_Early_3.xml')
 sol = np.ones((problem['n_teams'],problem['n_teams']), dtype = int)*(-1)
-solution, objective_value = load_solution('..//Appendix_Files//Final_Solutions//Early_instances//E1.xml', sol)
+solution, objective_value = load_solution('..//Appendix_Files//Final_Solutions//Early_instances//E3.xml', sol)
 obj = cost_function(solution, problem)
