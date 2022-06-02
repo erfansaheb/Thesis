@@ -351,40 +351,44 @@ def feasibility_check(Solution, problem):
             continue
         if i == 0: #CA1 constraints
             for c in cc:
-                for team in c['teams']:
-                    p = 0
-                    if c['mode'] == 'H':
-                        p += np.sum(np.transpose(Solution[team:team+1,:]) == c['slots'])
-                    else:
-                        p += np.sum(Solution[:,team:team+1] == c['slots'])
-                    if p > c['max']:
-                        feasibility = False
-                        status = 'Team {} has {} more {} games than max= {} during time slots {}'.format(team, p -c['max'], c['mode'], c['max'], c['slots'])
+                if feasibility:
+                    for team in c['teams']:
+                        p = 0
+                        if c['mode'] == 'H':
+                            p += np.sum(np.transpose(Solution[team:team+1,:]) == c['slots'])
+                        else:
+                            p += np.sum(Solution[:,team:team+1] == c['slots'])
+                        if p > c['max']:
+                            break
+                feasibility = False
+                status = 'Team {} has {} more {} games than max= {} during time slots {}'.format(team, p -c['max'], c['mode'], c['max'], c['slots'])
         elif i == 1:#CA2 constraints
             for c in cc:
-                if c['mode1'] == 'HA':
-                    for team1 in c['teams1']:
-                        p = 0
-                        for team2 in c['teams2']:
-                            p += np.sum(Solution[team1, team2]== c['slots'])
-                            p += np.sum(Solution[team2, team1]== c['slots'])
-                        if p > c['max']:
-                            feasibility = False
-                            status = 'Team {} has {} more {} games than max= {} during time slots {} agains teams: {}'.format(team1, p -c['max'], c['mode'], c['max'], c['slots'], c['teams2'])
-                elif c['mode1'] == 'H':
-                    for team1 in c['teams1']:
-                        p = 0
-                        for team2 in c['teams2']:
-                            p += np.sum(Solution[team1, team2]== c['slots'])
-                        if p > c['max']:
-                            obj += (p - c['max'])*c['penalty']
-                else:
-                    for team1 in c['teams1']:
-                        p = 0
-                        for team2 in c['teams2']:
-                            p += np.sum(Solution[team2, team1]== c['slots'])
-                        if p > c['max']:
-                            obj += (p - c['max'])*c['penalty']
+                if feasibility:
+                    if c['mode1'] == 'HA':
+                        for team1 in c['teams1']:
+                            p = 0
+                            for team2 in c['teams2']:
+                                p += np.sum(Solution[team1, team2]== c['slots'])
+                                p += np.sum(Solution[team2, team1]== c['slots'])
+                            if p > c['max']:
+                               break 
+                    elif c['mode1'] == 'H':
+                        for team1 in c['teams1']:
+                            p = 0
+                            for team2 in c['teams2']:
+                                p += np.sum(Solution[team1, team2]== c['slots'])
+                            if p > c['max']:
+                                break
+                    else:
+                        for team1 in c['teams1']:
+                            p = 0
+                            for team2 in c['teams2']:
+                                p += np.sum(Solution[team2, team1]== c['slots'])
+                            if p > c['max']:
+                                break
+                    feasibility = False
+                    status = 'Team {} has {} more {} games than max= {} during time slots {} agains teams: {}'.format(team1, p -c['max'], c['mode'], c['max'], c['slots'], c['teams2'])
         elif i == 2:#CA3 constraints
             for c in cc:
                 if c['mode1'] == 'HA':
