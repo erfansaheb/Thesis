@@ -346,49 +346,56 @@ def cost_function(Solution, problem):
 def feasibility_check(Solution, problem):
     ca, ga, ba, fa, sa = problem['feas_constr'].values()
     status, feasibility = 'Feasible', True
+    for i in range(len(Solution)):
+        if len(np.unique(np.concatenate([Solution[i,:], Solution[:,i]]))) != len(Solution)*2+1:
+            feasibility = False
+            status = 'Incompatible solution, at least one team has more than one game on the same time slot'
+            return status, feasibility
     for i, cc in enumerate(ca):
         if len(cc) == 0:
             continue
         if i == 0: #CA1 constraints
             for c in cc:
-                if feasibility:
-                    for team in c['teams']:
-                        p = 0
-                        if c['mode'] == 'H':
-                            p += np.sum(np.transpose(Solution[team:team+1,:]) == c['slots'])
-                        else:
-                            p += np.sum(Solution[:,team:team+1] == c['slots'])
-                        if p > c['max']:
-                            break
-                feasibility = False
-                status = 'Team {} has {} more {} games than max= {} during time slots {}'.format(team, p -c['max'], c['mode'], c['max'], c['slots'])
+                for team in c['teams']:
+                    p = 0
+                    if c['mode'] == 'H':
+                        p += np.sum(np.transpose(Solution[team:team+1,:]) == c['slots'])
+                    else:
+                        p += np.sum(Solution[:,team:team+1] == c['slots'])
+                    if p > c['max']:
+                        feasibility = False
+                        status = 'Team {} has {} more {} games than max= {} during time slots {}:\t {}'.format(team, p -c['max'], c['mode'], c['max'], c['slots'], p)
+                        # return status, feasibility
         elif i == 1:#CA2 constraints
             for c in cc:
-                if feasibility:
-                    if c['mode1'] == 'HA':
-                        for team1 in c['teams1']:
-                            p = 0
-                            for team2 in c['teams2']:
-                                p += np.sum(Solution[team1, team2]== c['slots'])
-                                p += np.sum(Solution[team2, team1]== c['slots'])
-                            if p > c['max']:
-                               break 
-                    elif c['mode1'] == 'H':
-                        for team1 in c['teams1']:
-                            p = 0
-                            for team2 in c['teams2']:
-                                p += np.sum(Solution[team1, team2]== c['slots'])
-                            if p > c['max']:
-                                break
-                    else:
-                        for team1 in c['teams1']:
-                            p = 0
-                            for team2 in c['teams2']:
-                                p += np.sum(Solution[team2, team1]== c['slots'])
-                            if p > c['max']:
-                                break
-                    feasibility = False
-                    status = 'Team {} has {} more {} games than max= {} during time slots {} agains teams: {}'.format(team1, p -c['max'], c['mode'], c['max'], c['slots'], c['teams2'])
+                if c['mode1'] == 'HA':
+                    for team1 in c['teams1']:
+                        p = 0
+                        for team2 in c['teams2']:
+                            p += np.sum(Solution[team1, team2]== c['slots'])
+                            p += np.sum(Solution[team2, team1]== c['slots'])
+                        if p > c['max']:
+                           feasibility = False
+                           status = 'Team {} has {} more {} games than max= {} during time slots {} against teams {}:\t {}'.format(team1, p -c['max'], c['mode1'], c['max'], c['slots'], c['teams2'], p)
+                           # return status, feasibility
+                elif c['mode1'] == 'H':
+                    for team1 in c['teams1']:
+                        p = 0
+                        for team2 in c['teams2']:
+                            p += np.sum(Solution[team1, team2]== c['slots'])
+                        if p > c['max']:
+                            feasibility = False
+                            status = 'Team {} has {} more {} games than max= {} during time slots {} against teams {}:\t {}'.format(team1, p -c['max'], c['mode1'], c['max'], c['slots'], c['teams2'], p)
+                            # return status, feasibility
+                else:
+                    for team1 in c['teams1']:
+                        p = 0
+                        for team2 in c['teams2']:
+                            p += np.sum(Solution[team2, team1]== c['slots'])
+                        if p > c['max']:
+                            feasibility = False
+                            status = 'Team {} has {} more {} games than max= {} during time slots {} against teams {}:\t {}'.format(team1, p -c['max'], c['mode1'], c['max'], c['slots'], c['teams2'], p)
+                            # return status, feasibility
         elif i == 2:#CA3 constraints
             for c in cc:
                 if c['mode1'] == 'HA':
@@ -399,21 +406,27 @@ def feasibility_check(Solution, problem):
                         for s in range(c['intp'],problem['n_slots'] + 1):
                             p = np.sum(np.logical_and((slots < s) ,(slots >= s - c['intp'])))
                             if p > c['max']:
-                                obj += (p - c['max'])*c['penalty']
+                                feasibility = False
+                                status = 'Team {} has {} more games than max= {} during time slots {} against teams {}:\t {}'.format(team1, p -c['max'], c['max'], list(range(c['intp'],problem['n_slots'] + 1)), c['teams2'], p)
+                                # return status, feasibility
                 elif c['mode1'] == 'H':
                     for team in c['teams1']:
                         slots_H = Solution[team, c['teams2']]
                         for s in range(c['intp'],problem['n_slots'] + 1):
                             p = np.sum(np.logical_and((slots_H < s) ,(slots_H >= s - c['intp'])))
                             if p > c['max']:
-                                obj += (p - c['max'])*c['penalty']
+                                feasibility = False
+                                status = 'Team {} has {} more home games than max= {} during time slots {} against teams {}:\t {}'.format(team1, p -c['max'], c['max'], list(range(c['intp'],problem['n_slots'] + 1)), c['teams2'], p)
+                                # return status, feasibility
                 else:
                     for team in c['teams1']:
                         slots_A = Solution[c['teams2'], team]
                         for s in range(c['intp'],problem['n_slots'] + 1):
                             p = np.sum(np.logical_and((slots_A < s) ,(slots_A >= s - c['intp'])))
                             if p > c['max']:
-                                obj += (p - c['max'])*c['penalty']
+                                feasibility = False
+                                status = 'Team {} has {} more away games than max= {} during time slots {} against teams {}:\t {}'.format(team1, p -c['max'], c['max'], list(range(c['intp'],problem['n_slots'] + 1)), c['teams2'], p)
+                                # return status, feasibility
         else:#CA4 constraints
             for c in cc:
                 if c['mode1'] == 'HA':
@@ -425,13 +438,17 @@ def feasibility_check(Solution, problem):
                         for slot in c['slots']:
                             p += np.sum( slots == slot)
                         if p > c['max']:
-                            obj += (p - c['max'])*c['penalty']
+                            feasibility = False
+                            status = 'Teams {} has {} more games than max= {} during time slots {} against teams {}:\t {}'.format(c['teams1'], p -c['max'], c['max'], c['slots'], c['teams2'], p)
+                            # return status, feasibility
                     else:
                         slots = Solution[np.ix_(c['teams1'], c['teams2'])].flatten()
                         for slot in c['slots']:
                             p = np.sum( slots == slot)
                             if p > c['max']:
-                                obj += (p - c['max'])*c['penalty']
+                                feasibility = False
+                                status = 'Teams {} has {} more games than max= {} at time slot {} against teams {}:\t {}'.format(c['teams1'], p -c['max'], c['max'], c['slots'], c['teams2'], p)
+                                # return status, feasibility
                 elif c['mode1'] == 'H':
                     if c['mode2'] == 'GLOBAL':
                         p = 0
@@ -439,13 +456,17 @@ def feasibility_check(Solution, problem):
                         for slot in c['slots']:
                             p += np.sum( slots == slot)
                         if p > c['max']:
-                            obj += (p - c['max'])*c['penalty']
+                            feasibility = False
+                            status = 'Teams {} has {} more home games than max= {} during time slots {} against teams {}:\t {}'.format(c['teams1'], p -c['max'], c['max'], slot, c['teams2'], p)
+                            # return status, feasibility
                     else:
                         slots = Solution[np.ix_(c['teams1'], c['teams2'])].flatten()
                         for slot in c['slots']:
                             p = np.sum( slots == slot)
                             if p > c['max']:
-                                obj += (p - c['max'])*c['penalty']
+                                feasibility = False
+                                status = 'Teams {} has {} more home games than max= {} at time slot {} against teams {}:\t {}'.format(c['teams1'], p -c['max'], c['max'], c['slots'], c['teams2'], p)
+                                # return status, feasibility
                 else:
                     if c['mode2'] == 'GLOBAL':
                         p = 0
@@ -453,13 +474,17 @@ def feasibility_check(Solution, problem):
                         for slot in c['slots']:
                             p += np.sum( slots == slot)
                         if p > c['max']:
-                            obj += (p - c['max'])*c['penalty']
+                            feasibility = False
+                            status = 'Teams {} has {} more away games than max= {} during time slots {} against teams {}:\t {}'.format(c['teams1'], p -c['max'], c['max'], c['slots'], c['teams2'], p)
+                            # return status, feasibility
                     else:
                         slots = Solution[np.ix_(c['teams1'], c['teams2'])].flatten()
                         for slot in c['slots']:
                             p = np.sum( slots == slot)
                             if p > c['max']:
-                                obj += (p - c['max'])*c['penalty']
+                                feasibility = False
+                                status = 'Teams {} has {} more away games than max= {} at time slot {} against teams {}:\t {}'.format(c['teams1'], p -c['max'], c['max'], c['slots'], c['teams2'], p)
+                                # return status, feasibility
     for i, gc in enumerate(ga):
         if len(gc) == 0:
             continue
@@ -468,9 +493,13 @@ def feasibility_check(Solution, problem):
             for meeting in c['meetings']:
                 p += np.sum(Solution[tuple(meeting)]== c['slots'])
             if p < c['min']:
-                obj += (c['min'] - p)*c['penalty']
+                feasibility = False
+                status = 'Less than min {} games from {} took place during time slots{}:\t {}'.format(c['min'], c['meetings'], c['slots'])
+                # return status, feasibility
             elif p > c['max']:
-                obj += (p - c['max'])*c['penalty']
+                feasibility = False
+                status = 'More/less than max/min {} games from {} took place during time slots{}:\t {}'.format(c['max'], c['meetings'], c['slots'])
+                # return status, feasibility
     for i, bc in enumerate(ba):
         if len(bc) == 0:
             continue
@@ -490,7 +519,9 @@ def feasibility_check(Solution, problem):
                         else:
                             p += (cur == prev and cur == False)
                     if p > c['intp']:
-                        obj += (p - c['intp'])*c['penalty']
+                        feasibility = False
+                        status = 'Team {} has {} more {} breaks than max= {} during time slots {} :\t {}'.format(team, p -c['intp'],c['mode2'] ,c['intp'], c['slots'], p)
+                        # return status, feasibility
         elif i == 1:#BR2 constraints
             for c in bc:
                 p = 0
@@ -502,7 +533,9 @@ def feasibility_check(Solution, problem):
                         prev = (Solution[team, :] == slot -1).any()
                         p += (cur == prev)
                 if p > c['intp']:
-                    obj += (p - c['intp'])*c['penalty']
+                    feasibility = False
+                    status = 'Teams {} has {} more breaks than max= {} during time slots {} :\t {}'.format(c['teams'], p -c['intp'] ,c['intp'], c['slots'], p)
+                    # return status, feasibility
     for i, fc in enumerate(fa):
         if len(fc) == 0:
             continue
@@ -519,7 +552,10 @@ def feasibility_check(Solution, problem):
                     #     p += (diff - c['intp'])
             diff -= c['intp']
             diff[diff < 0] = 0
-            obj += np.sum(diff)*c['penalty']
+            if np.sum(diff) > 0:
+                feasibility = False
+                status = 'The difference in home games played between {} is larger than {} during time slots {} :\t {}'.format(c['teams'], c['intp'], c['slots'], p)
+                # return status, feasibility
     for i, sc in enumerate(sa):
         if len(sc) == 0:
             continue
@@ -529,8 +565,10 @@ def feasibility_check(Solution, problem):
                 second = Solution[team2, team1]
                 diff = abs(second - first) - 1
                 if diff < c['min']:
-                    obj += (c['min'] - diff)* c['penalty']
-    return obj
+                    feasibility = False
+                    status = 'Team {} and team {} has {} less time slots between their mutual games than min= {}:\t {}'.format(team1, team2, c['min'] - diff ,c['min'], diff)
+                    # return status, feasibility
+    return status, feasibility
                 
 def load_solution(file, sol):
     # load file
@@ -542,7 +580,8 @@ def load_solution(file, sol):
     for game in Games:
         sol[int(game['@home']), int(game['@away'])] = int(game['@slot'])
     return sol, objective_value
-problem = load_problem('Instances//EarlyInstances_V3//ITC2021_Early_3.xml')
+problem = load_problem('Instances//EarlyInstances_V3//ITC2021_Early_1.xml')
 sol = np.ones((problem['n_teams'],problem['n_teams']), dtype = int)*(-1)
-solution, objective_value = load_solution('..//Appendix_Files//Final_Solutions//Early_instances//E3.xml', sol)
+solution, objective_value = load_solution('..//Appendix_Files//Final_Solutions//Early_instances//E1-Copy.xml', sol)
 obj = cost_function(solution, problem)
+status, feasibility = feasibility_check(solution, problem)
