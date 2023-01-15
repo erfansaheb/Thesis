@@ -5,9 +5,7 @@ import numpy as np
 
 def load_problem(file):
     # load file
-    with open(file, "r") as f:
-        data_dict = xmltodict.parse(f.read())
-        f.close()
+    data_dict = load_xml_file(file)
     n_teams = len(data_dict["Instance"]["Resources"]["Teams"]["team"])
     n_slots = (n_teams - 1) * 2
     gameMode = data_dict["Instance"]["Structure"]["Format"]["gameMode"]
@@ -164,6 +162,21 @@ def load_problem(file):
         "n_slots": n_slots,
         "gameMode": gameMode,
     }
+
+
+def load_xml_file(file: str) -> dict:
+    """Loads the xml file for initializing the problem
+
+    Args:
+        file (str): address to the file
+
+    Returns:
+        dict: output of xml to dict
+    """
+    with open(file, "r") as f:
+        data_dict = xmltodict.parse(f.read())
+        f.close()
+    return data_dict
 
 
 def cost_function(Solution, problem):
