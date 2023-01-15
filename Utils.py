@@ -1,148 +1,44 @@
 import xmltodict
 from itertools import combinations
 import numpy as np
+from collections import OrderedDict
+from typing import Tuple
 
 
-def load_problem(file):
-    # load file
+def load_problem(file: str) -> dict[str, dict[str, list]]:
     data_dict = load_xml_file(file)
     n_teams = len(data_dict["Instance"]["Resources"]["Teams"]["team"])
     n_slots = (n_teams - 1) * 2
     gameMode = data_dict["Instance"]["Structure"]["Format"]["gameMode"]
-    # team_feas_const = {str(i):[] for i in range(n_teams)}
-    ca_hard, ca_soft = [[] for _ in range(4)], [[] for _ in range(4)]
-    if ca := data_dict["Instance"]["Constraints"]["CapacityConstraints"]:
-        cas = ["CA1", "CA2", "CA3", "CA4"]
-        for i, c in enumerate(cas):
-            if c not in ca.keys():
-                continue
-            elif type(ca[c]) == list:
-                cc = ca[c]
-            else:
-                cc = [ca[c]]
-            for num in cc:
-                const = {
-                    "max": int(num["@max"]),
-                    "min": int(num["@min"]),
-                    "penalty": int(num["@penalty"]),
-                }
-                if "@teams" in num.keys():
-                    const["teams"] = [int(x) for x in num["@teams"].split(";")]
-                else:
-                    const["teams1"] = [int(x) for x in num["@teams1"].split(";")]
-                    const["teams2"] = [int(x) for x in num["@teams2"].split(";")]
-                if "@mode" in num.keys():
-                    const["mode"] = num["@mode"]
-                else:
-                    const["mode1"] = num["@mode1"]
-                    const["mode2"] = num["@mode2"]
-                if "@slots" in num.keys():
-                    const["slots"] = [int(x) for x in num["@slots"].split(";")]
-                if "@intp" in num.keys():
-                    const["intp"] = int(num["@intp"])
-                if num["@type"] == "HARD":
-                    ca_hard[i].append(const)
-                else:
-                    ca_soft[i].append(const)
 
-    ga_hard, ga_soft = [[] for _ in range(1)], [[] for _ in range(1)]
-    if ga := data_dict["Instance"]["Constraints"]["GameConstraints"]:
-        gas = ["GA1"]
-        for i, g in enumerate(gas):
-            if g not in ga.keys():
-                continue
-            elif type(ga[g]) == list:
-                ga1 = ga[g]
-            else:
-                ga1 = [ga[g]]
-            for num in ga1:
-                const = {
-                    "meetings": [
-                        [int(y), int(z)]
-                        for y, z in (
-                            x.split(",") for x in num["@meetings"].split(";") if x
-                        )
-                    ],
-                    "slots": [int(x) for x in num["@slots"].split(";")],
-                    "max": int(num["@max"]),
-                    "min": int(num["@min"]),
-                    "penalty": int(num["@penalty"]),
-                }
-                if num["@type"] == "HARD":
-                    ga_hard[i].append(const)
-                else:
-                    ga_soft[i].append(const)
-    ba_hard, ba_soft = [[] for _ in range(2)], [[] for _ in range(2)]
-    if ba := data_dict["Instance"]["Constraints"]["BreakConstraints"]:
-        bas = ["BR1", "BR2"]
-        for i, b in enumerate(bas):
-            if b not in ba.keys():
-                continue
-            elif type(ba[b]) == list:
-                bc = ba[b]
-            else:
-                bc = [ba[b]]
-            for num in bc:
-                const = {
-                    "teams": [int(x) for x in num["@teams"].split(";")],
-                    "slots": [int(x) for x in num["@slots"].split(";")],
-                    "intp": int(num["@intp"]),
-                    "mode2": num["@mode2"],
-                    "penalty": int(num["@penalty"]),
-                }
-                if "@mode1" in num.keys():
-                    const["mode1"] = num["@mode1"]
-                elif "@homeMode" in num.keys():
-                    const["homeMode"] = num["@homeMode"]
-                if num["@type"] == "HARD":
-                    ba_hard[i].append(const)
-                else:
-                    ba_soft[i].append(const)
-    fa_hard, fa_soft = [[] for _ in range(1)], [[] for _ in range(1)]
-    if fa := data_dict["Instance"]["Constraints"]["FairnessConstraints"]:
-        fas = ["FA2"]
-        for i, f in enumerate(fas):
-            if f not in fa.keys():
-                continue
-            elif type(fa[f]) == list:
-                fc = fa[f]
-            else:
-                fc = [fa[f]]
-            for num in fc:
-                const = {
-                    "teams": [int(x) for x in num["@teams"].split(";")],
-                    "slots": [int(x) for x in num["@slots"].split(";")],
-                    "intp": int(num["@intp"]),
-                    "mode": num["@mode"],
-                    "penalty": int(num["@penalty"]),
-                }
-                if num["@type"] == "HARD":
-                    fa_hard[i].append(const)
-                else:
-                    fa_soft[i].append(const)
-    sa_hard, sa_soft = [[] for _ in range(1)], [[] for _ in range(1)]
-    if sa := data_dict["Instance"]["Constraints"]["SeparationConstraints"]:
-        sas = ["SE1"]
-        for i, s in enumerate(sas):
-            if s not in sa.keys():
-                continue
-            elif type(sa[s]) == list:
-                sc = sa[s]
-            else:
-                sc = [sa[s]]
-            for num in sc:
-                const = {
-                    "teams": list(
-                        combinations([int(x) for x in num["@teams"].split(";")], 2)
-                    ),
-                    "min": int(num["@min"]),
-                    "mode1": num["@mode1"],
-                    "penalty": int(num["@penalty"]),
-                }
-                if num["@type"] == "HARD":
-                    sa_hard[i].append(const)
-                else:
-                    sa_soft[i].append(const)
+    if capacity_constraints := data_dict["Instance"]["Constraints"][
+        "CapacityConstraints"
+    ]:
+        ca_hard, ca_soft = load_capacity_constraints(capacity_constraints)
+    else:
+        ca_hard, ca_soft = [[] for _ in range(4)], [[] for _ in range(4)]
+
+    if game_constraints := data_dict["Instance"]["Constraints"]["GameConstraints"]:
+        ga_hard, ga_soft = load_game_constraints(game_constraints)
+    else:
+        ga_hard, ga_soft = [[] for _ in range(1)], [[] for _ in range(1)]
+    if break_constraints := data_dict["Instance"]["Constraints"]["BreakConstraints"]:
+        ba_hard, ba_soft = load_break_constraints(break_constraints)
+    else:
+        ba_hard, ba_soft = [[] for _ in range(2)], [[] for _ in range(2)]
+    if fairness_constraints := data_dict["Instance"]["Constraints"][
+        "FairnessConstraints"
+    ]:
+        fa_hard, fa_soft = load_fairness_constraints(fairness_constraints)
+    else:
+        fa_hard, fa_soft = [[] for _ in range(1)], [[] for _ in range(1)]
+
+    if separation_constraints := data_dict["Instance"]["Constraints"][
+        "SeparationConstraints"
+    ]:
+        sa_hard, sa_soft = load_separation_constraints(separation_constraints)
+    else:
+        sa_hard, sa_soft = [[] for _ in range(1)], [[] for _ in range(1)]
     return {
         "feas_constr": {
             "ca": ca_hard,
@@ -164,7 +60,198 @@ def load_problem(file):
     }
 
 
-def load_xml_file(file: str) -> dict:
+def load_separation_constraints(
+    separation_constraints: OrderedDict,
+) -> Tuple[list, list]:
+    """This function extracts the separation constraints
+
+    Args:
+        separation_constraints (OrderedDict): dictionary containing each type of separation constraints
+
+    Returns:
+        Tuple[list, list]: separated lists of soft and hard separation constraints
+    """
+    sa_hard, sa_soft = [[] for _ in range(1)], [[] for _ in range(1)]
+    sas = ["SE1"]
+    for i, s in enumerate(sas):
+        if s not in separation_constraints.keys():
+            continue
+        elif type(separation_constraints[s]) == list:
+            sc = separation_constraints[s]
+        else:
+            sc = [separation_constraints[s]]
+        for num in sc:
+            const = {
+                "teams": list(
+                    combinations([int(x) for x in num["@teams"].split(";")], 2)
+                ),
+                "min": int(num["@min"]),
+                "mode1": num["@mode1"],
+                "penalty": int(num["@penalty"]),
+            }
+            if num["@type"] == "HARD":
+                sa_hard[i].append(const)
+            else:
+                sa_soft[i].append(const)
+    return sa_hard, sa_soft
+
+
+def load_fairness_constraints(
+    fairness_constraints: OrderedDict,
+) -> Tuple[list, list]:
+    """This function extracts the fairness constraints
+
+    Args:
+        fairness_constraints (OrderedDict): dictionary containing each type of fairness constraints
+
+    Returns:
+        Tuple[list, list]: separated lists of soft and hard fairness constraints
+    """
+    fa_hard, fa_soft = [[] for _ in range(1)], [[] for _ in range(1)]
+    fas = ["FA2"]
+    for i, f in enumerate(fas):
+        if f not in fairness_constraints.keys():
+            continue
+        elif type(fairness_constraints[f]) == list:
+            fc = fairness_constraints[f]
+        else:
+            fc = [fairness_constraints[f]]
+        for num in fc:
+            const = {
+                "teams": [int(x) for x in num["@teams"].split(";")],
+                "slots": [int(x) for x in num["@slots"].split(";")],
+                "intp": int(num["@intp"]),
+                "mode": num["@mode"],
+                "penalty": int(num["@penalty"]),
+            }
+            if num["@type"] == "HARD":
+                fa_hard[i].append(const)
+            else:
+                fa_soft[i].append(const)
+    return fa_hard, fa_soft
+
+
+def load_break_constraints(
+    break_constraints: OrderedDict,
+) -> Tuple[list, list]:
+    """This function extracts the break constraints
+
+    Args:
+        break_constraints (OrderedDict): dictionary containing each type of break constraints
+
+    Returns:
+        Tuple[list, list]: separated lists of soft and hard break constraints
+    """
+    ba_hard, ba_soft = [[] for _ in range(2)], [[] for _ in range(2)]
+    bas = ["BR1", "BR2"]
+    for i, b in enumerate(bas):
+        if b not in break_constraints.keys():
+            continue
+        elif type(break_constraints[b]) == list:
+            bc = break_constraints[b]
+        else:
+            bc = [break_constraints[b]]
+        for num in bc:
+            const = {
+                "teams": [int(x) for x in num["@teams"].split(";")],
+                "slots": [int(x) for x in num["@slots"].split(";")],
+                "intp": int(num["@intp"]),
+                "mode2": num["@mode2"],
+                "penalty": int(num["@penalty"]),
+            }
+            if "@mode1" in num.keys():
+                const["mode1"] = num["@mode1"]
+            elif "@homeMode" in num.keys():
+                const["homeMode"] = num["@homeMode"]
+            if num["@type"] == "HARD":
+                ba_hard[i].append(const)
+            else:
+                ba_soft[i].append(const)
+    return ba_hard, ba_soft
+
+
+def load_game_constraints(game_constraints: OrderedDict) -> Tuple[list, list]:
+    """This function extracts the game constraints
+
+    Args:
+        game_constraints (OrderedDict): dictionary containing each type of game constraints
+
+    Returns:
+        Tuple[list, list]: separated lists of soft and hard game constraints
+    """
+    ga_hard, ga_soft = [[] for _ in range(1)], [[] for _ in range(1)]
+    gas = ["GA1"]
+    for i, g in enumerate(gas):
+        if g not in game_constraints.keys():
+            continue
+        elif type(game_constraints[g]) == list:
+            ga1 = game_constraints[g]
+        else:
+            ga1 = [game_constraints[g]]
+        for num in ga1:
+            const = {
+                "meetings": [
+                    [int(y), int(z)]
+                    for y, z in (x.split(",") for x in num["@meetings"].split(";") if x)
+                ],
+                "slots": [int(x) for x in num["@slots"].split(";")],
+                "max": int(num["@max"]),
+                "min": int(num["@min"]),
+                "penalty": int(num["@penalty"]),
+            }
+            if num["@type"] == "HARD":
+                ga_hard[i].append(const)
+            else:
+                ga_soft[i].append(const)
+    return ga_hard, ga_soft
+
+
+def load_capacity_constraints(capacity_constraints: OrderedDict) -> Tuple[list, list]:
+    """This function extracts the capacity constraints
+
+    Args:
+        capacity_constraints (OrderedDict): dictionary containing each type of capacity constraints
+
+    Returns:
+        Tuple[list, list]: separated lists of soft and hard capacity constraints
+    """
+    ca_hard, ca_soft = [[] for _ in range(4)], [[] for _ in range(4)]
+    cas = ["CA1", "CA2", "CA3", "CA4"]
+    for i, c in enumerate(cas):
+        if c not in capacity_constraints.keys():
+            continue
+        elif type(capacity_constraints[c]) == list:
+            cc = capacity_constraints[c]
+        else:
+            cc = [capacity_constraints[c]]
+        for num in cc:
+            const = {
+                "max": int(num["@max"]),
+                "min": int(num["@min"]),
+                "penalty": int(num["@penalty"]),
+            }
+            if "@teams" in num.keys():
+                const["teams"] = [int(x) for x in num["@teams"].split(";")]
+            else:
+                const["teams1"] = [int(x) for x in num["@teams1"].split(";")]
+                const["teams2"] = [int(x) for x in num["@teams2"].split(";")]
+            if "@mode" in num.keys():
+                const["mode"] = num["@mode"]
+            else:
+                const["mode1"] = num["@mode1"]
+                const["mode2"] = num["@mode2"]
+            if "@slots" in num.keys():
+                const["slots"] = [int(x) for x in num["@slots"].split(";")]
+            if "@intp" in num.keys():
+                const["intp"] = int(num["@intp"])
+            if num["@type"] == "HARD":
+                ca_hard[i].append(const)
+            else:
+                ca_soft[i].append(const)
+    return ca_hard, ca_soft
+
+
+def load_xml_file(file: str) -> OrderedDict:
     """Loads the xml file for initializing the problem
 
     Args:
