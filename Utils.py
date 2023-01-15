@@ -2,7 +2,6 @@ import xmltodict
 from itertools import combinations
 import numpy as np
 from collections import OrderedDict
-from typing import Tuple
 
 
 def load_problem(file: str) -> dict[str, dict[str, list]]:
@@ -62,7 +61,7 @@ def load_problem(file: str) -> dict[str, dict[str, list]]:
 
 def load_separation_constraints(
     separation_constraints: OrderedDict,
-) -> Tuple[list, list]:
+) -> tuple[list, list]:
     """This function extracts the separation constraints
 
     Args:
@@ -98,7 +97,7 @@ def load_separation_constraints(
 
 def load_fairness_constraints(
     fairness_constraints: OrderedDict,
-) -> Tuple[list, list]:
+) -> tuple[list, list]:
     """This function extracts the fairness constraints
 
     Args:
@@ -133,7 +132,7 @@ def load_fairness_constraints(
 
 def load_break_constraints(
     break_constraints: OrderedDict,
-) -> Tuple[list, list]:
+) -> tuple[list, list]:
     """This function extracts the break constraints
 
     Args:
@@ -170,7 +169,7 @@ def load_break_constraints(
     return ba_hard, ba_soft
 
 
-def load_game_constraints(game_constraints: OrderedDict) -> Tuple[list, list]:
+def load_game_constraints(game_constraints: OrderedDict) -> tuple[list, list]:
     """This function extracts the game constraints
 
     Args:
@@ -206,7 +205,7 @@ def load_game_constraints(game_constraints: OrderedDict) -> Tuple[list, list]:
     return ga_hard, ga_soft
 
 
-def load_capacity_constraints(capacity_constraints: OrderedDict) -> Tuple[list, list]:
+def load_capacity_constraints(capacity_constraints: OrderedDict) -> tuple[list, list]:
     """This function extracts the capacity constraints
 
     Args:
