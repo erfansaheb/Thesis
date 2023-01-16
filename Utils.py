@@ -493,7 +493,7 @@ def feasibility_check(Solution, problem):
                         status = "Team {} has {} more {} games than max= {} during time slots {}:\t {}".format(
                             team, p - c["max"], c["mode"], c["max"], c["slots"], p
                         )
-                        # return status, feasibility
+                        return status, feasibility
         elif i == 1:  # CA2 constraints
             for c in cc:
                 if c["mode1"] == "HA":
@@ -513,7 +513,7 @@ def feasibility_check(Solution, problem):
                                 c["teams2"],
                                 p,
                             )
-                            # return status, feasibility
+                            return status, feasibility
                 elif c["mode1"] == "H":
                     for team1 in c["teams1"]:
                         p = 0
@@ -530,7 +530,7 @@ def feasibility_check(Solution, problem):
                                 c["teams2"],
                                 p,
                             )
-                            # return status, feasibility
+                            return status, feasibility
                 else:
                     for team1 in c["teams1"]:
                         p = 0
@@ -547,7 +547,7 @@ def feasibility_check(Solution, problem):
                                 c["teams2"],
                                 p,
                             )
-                            # return status, feasibility
+                            return status, feasibility
         elif i == 2:  # CA3 constraints
             for c in cc:
                 if c["mode1"] == "HA":
@@ -569,7 +569,7 @@ def feasibility_check(Solution, problem):
                                     c["teams2"],
                                     p,
                                 )
-                                # return status, feasibility
+                                return status, feasibility
                 elif c["mode1"] == "H":
                     for team1 in c["teams1"]:
                         slots_H = Solution[team, c["teams2"]]
@@ -589,7 +589,7 @@ def feasibility_check(Solution, problem):
                                     c["teams2"],
                                     p,
                                 )
-                                # return status, feasibility
+                                return status, feasibility
                 else:
                     for team1 in c["teams1"]:
                         slots_A = Solution[c["teams2"], team]
@@ -609,7 +609,7 @@ def feasibility_check(Solution, problem):
                                     c["teams2"],
                                     p,
                                 )
-                                # return status, feasibility
+                                return status, feasibility
         else:  # CA4 constraints
             for c in cc:
                 if c["mode1"] == "HA":
@@ -630,7 +630,7 @@ def feasibility_check(Solution, problem):
                                 c["teams2"],
                                 p,
                             )
-                            # return status, feasibility
+                            return status, feasibility
                     else:
                         slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
                         for slot in c["slots"]:
@@ -645,7 +645,7 @@ def feasibility_check(Solution, problem):
                                     c["teams2"],
                                     p,
                                 )
-                                # return status, feasibility
+                                return status, feasibility
                 elif c["mode1"] == "H":
                     if c["mode2"] == "GLOBAL":
                         p = 0
@@ -662,7 +662,7 @@ def feasibility_check(Solution, problem):
                                 c["teams2"],
                                 p,
                             )
-                            # return status, feasibility
+                            return status, feasibility
                     else:
                         slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
                         for slot in c["slots"]:
@@ -677,7 +677,7 @@ def feasibility_check(Solution, problem):
                                     c["teams2"],
                                     p,
                                 )
-                                # return status, feasibility
+                                return status, feasibility
                 else:
                     if c["mode2"] == "GLOBAL":
                         p = 0
@@ -694,7 +694,7 @@ def feasibility_check(Solution, problem):
                                 c["teams2"],
                                 p,
                             )
-                            # return status, feasibility
+                            return status, feasibility
                     else:
                         slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
                         for slot in c["slots"]:
@@ -709,7 +709,7 @@ def feasibility_check(Solution, problem):
                                     c["teams2"],
                                     p,
                                 )
-                                # return status, feasibility
+                                return status, feasibility
     for i, gc in enumerate(ga):
         if len(gc) == 0:
             continue
@@ -720,11 +720,11 @@ def feasibility_check(Solution, problem):
             if p < c["min"]:
                 feasibility = False
                 status = f"Less than min {c['min']} games from {c['meetings']} took place during time slots{c['slots']}:\t {p}"
-                # return status, feasibility
+                return status, feasibility
             elif p > c["max"]:
                 feasibility = False
                 status = "More/less than max/min {c['max']} games from {c['meetings']} took place during time slots{c['slots']}:\t {p}"
-                # return status, feasibility
+                return status, feasibility
     for i, bc in enumerate(ba):
         if len(bc) == 0:
             continue
@@ -748,7 +748,7 @@ def feasibility_check(Solution, problem):
                         status = "Team {} has {} more {} breaks than max= {} during time slots {} :\t {}".format(
                             team, p - c["intp"], c["mode2"], c["intp"], c["slots"], p
                         )
-                        # return status, feasibility
+                        return status, feasibility
         elif i == 1:  # BR2 constraints
             for c in bc:
                 p = 0
@@ -764,7 +764,7 @@ def feasibility_check(Solution, problem):
                     status = "Teams {} has {} more breaks than max= {} during time slots {} :\t {}".format(
                         c["teams"], p - c["intp"], c["intp"], c["slots"], p
                     )
-                    # return status, feasibility
+                    return status, feasibility
     for i, fc in enumerate(fa):
         if len(fc) == 0:
             continue
@@ -788,7 +788,7 @@ def feasibility_check(Solution, problem):
                 status = "The difference in home games played between {} is larger than {} during time slots {} :\t {}".format(
                     c["teams"], c["intp"], c["slots"], p
                 )
-                # return status, feasibility
+                return status, feasibility
     for i, sc in enumerate(sa):
         if len(sc) == 0:
             continue
@@ -802,7 +802,7 @@ def feasibility_check(Solution, problem):
                     status = "Team {} and team {} has {} less time slots between their mutual games than min= {}:\t {}".format(
                         team1, team2, c["min"] - diff, c["min"], diff
                     )
-                    # return status, feasibility
+                    return status, feasibility
     return status, feasibility
 
 
