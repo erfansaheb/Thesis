@@ -2,45 +2,80 @@ import numpy as np
 from Utils import cost_function, feasibility_check
 
 
-def update_weights(weights, thetas, scores, r=0.2):
+def update_weights(
+    weights: list[float], thetas: list[int], scores: list[int], r: float = 0.2
+) -> list[float]:
+    """This function updates the weights using the adaptive weight adjustment method
+
+    Args:
+        weights (list[float]): list of weights
+        thetas (list[int]): a list containing number of times each operator is selected
+        scores (list[int]): a list containing the performance of each operator
+        r (float, optional): fixed constant. Defaults to 0.2.
+
+    Returns:
+        list[float]: list of updated weights
+    """
     new_weights = []
     for w, weight in enumerate(weights):
         if thetas[w] > 0:
             new_weights += [(weight * (1 - r) + r * (scores[w] / thetas[w]))]
         else:
             new_weights += [weight]
-    print(new_weights)
     return new_weights
 
 
-def normalize_weights(weights):
+def normalize_weights(weights: np.array[float], threshold: float = 0.05) -> np.array:
+    """This function normalizes the weights to prevent any of them from getting zero
+
+    Args:
+        weights (np.array): updated weights
+
+    Returns:
+        np.array: normalized weights
+    """
     normalized = weights / np.sum(weights)
-    less = normalized < 0.05
-    normalized[less] = 0.05
+    less = normalized < threshold
+    normalized[less] = threshold
     normalized[~less] = (
-        (1 - (0.05 * sum(less))) * normalized[~less] / sum(normalized[~less])
+        (1 - (threshold * sum(less))) * normalized[~less] / sum(normalized[~less])
     )
     return normalized
 
 
 def ALNS(
-    init_sol,
-    init_cost,
-    probability,
-    operators,
-    prob,
-    rng,
-    T_f=0.1,
-    warm_up=100,
-):
+    init_sol: np.array,
+    init_cost: int,
+    probability: list[float],
+    operators: list,
+    prob: dict,
+    rng: np.random.Generator,
+    T_f: float = 0.1,
+    warm_up: int = 100,
+) -> tuple[np.array, int, int, list, list]:
+    """This is an implementation of ALNS algorithm for my problem
+
+    Args:
+        init_sol (np.array): initial solution, 2d numpy array
+        init_cost (int): cost of initial solution
+        probability (list[float]): probabilities of choosing each operator
+        operators (list): list of operators
+        prob (dict): dictionary related to problem
+        rng (np.random.Generator): random generator (seeded!)
+        T_f (float, optional): final temperature. Defaults to 0.1.
+        warm_up (int, optional): number of iteration for warm-up phase. Defaults to 100.
+
+    Returns:
+        tuple[np.array, int, int, list, list]: best solution, best cost, last iteration of improvement, list of weights, list of feasible solutions found
+    """
     feas_sols = []
     incumbent = init_sol
     best_sol = init_sol
     cost_incumb = init_cost
     r = 0.2
     operators_len_range = range(len(operators))
-    scores = [0 for i in operators_len_range]
-    thetas = [0 for i in operators_len_range]
+    scores = [0 for _ in operators_len_range]
+    thetas = [0 for _ in operators_len_range]
     last_improvement = 0
     best_cost = cost_incumb
     delta = [0]
@@ -123,8 +158,8 @@ def ALNS(
                     ws = np.append(ws, [weights])
                 weights = update_weights(weights, thetas, scores, r)
 
-                scores = [0 for i in operators_len_range]
-                thetas = [0 for i in operators_len_range]
+                scores = [0 for _ in operators_len_range]
+                thetas = [0 for _ in operators_len_range]
                 weights = normalize_weights(weights)
                 ws = np.append(ws, [weights])
 
