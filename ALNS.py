@@ -163,9 +163,9 @@ def ALNS(
                 weights = normalize_weights(weights)
                 ws = np.append(ws, [weights])
 
-            op_id = rng.choice(operators_len_range, replace=True, p=weights)
-            operator = operators[op_id]
-            thetas[op_id] += 1
+            op_id, operator = choose_operator(
+                weights, operators, rng, operators_len_range, thetas
+            )
             new_sol = operator(
                 incumbent,
                 rng,
@@ -200,7 +200,7 @@ def ALNS(
 
 
 def choose_operator(
-    probability: list[float],
+    weights: list[float],
     operators: list,
     rng: np.random.Generator,
     operators_len_range: int,
@@ -209,7 +209,7 @@ def choose_operator(
     """This function takes the list of operators and their weights and returns the selected operator
 
     Args:
-        probability (list[float]): list of operator selection weights
+        weights (list[float]): list of operator selection weights
         operators (list): list of operators
         rng (np.random.Generator): random generator(seeded)
         operators_len_range (int): number of operators
@@ -218,7 +218,7 @@ def choose_operator(
     Returns:
         tuple: selected operator and its index
     """
-    op_id = rng.choice(operators_len_range, replace=True, p=probability)
+    op_id = rng.choice(operators_len_range, replace=True, p=weights)
     operator = operators[op_id]
     thetas[op_id] += 1
     return op_id, operator
