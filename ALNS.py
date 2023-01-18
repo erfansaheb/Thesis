@@ -1,5 +1,6 @@
 import numpy as np
 from Utils import cost_function, feasibility_check
+from typing import Callable
 
 
 def update_weights(
@@ -47,7 +48,7 @@ def ALNS(
     init_sol: np.array,
     init_cost: int,
     probability: list[float],
-    operators: list,
+    operators: list[Callable],
     prob: dict,
     rng: np.random.Generator,
     T_f: float = 0.1,
@@ -90,13 +91,9 @@ def ALNS(
             op_id, operator = choose_operator(
                 probability, operators, rng, operators_len_range, thetas
             )
-            new_sol = operator(
-                incumbent,
-                rng,
-                prob,
+            new_sol, new_cost, delta_E = apply_operator(
+                prob, rng, incumbent, cost_incumb, operator
             )
-            new_cost = cost_function(new_sol, prob)
-            delta_E = new_cost - cost_incumb
             if delta_E >= 0:
                 non_imp_count += 1
             c, feasiblity = feasibility_check(new_sol, prob)
@@ -166,14 +163,9 @@ def ALNS(
             op_id, operator = choose_operator(
                 weights, operators, rng, operators_len_range, thetas
             )
-            new_sol = operator(
-                incumbent,
-                rng,
-                prob,
+            new_sol, new_cost, delta_E = apply_operator(
+                prob, rng, incumbent, cost_incumb, operator
             )
-
-            new_cost = cost_function(new_sol, prob)
-            delta_E = new_cost - cost_incumb
             if delta_E >= 0:
                 non_imp_count += 1
             c, feasiblity = feasibility_check(new_sol, prob)
@@ -199,13 +191,42 @@ def ALNS(
     return best_sol, best_cost, last_improvement, ws, feas_sols
 
 
+def apply_operator(
+    prob: dict,
+    rng: np.random.Generator,
+    solution: np.array,
+    cost_current: int,
+    operator: Callable,
+) -> tuple[np.array, int, int]:
+    """This function applies the operator on solution and returns new solution, its cost, and difference of costs
+
+    Args:
+        prob (dict): dictionary related to problem
+        rng (np.random.Generator): random generator (seeded)
+        incumbent (np.array): current solution 2d np array
+        cost_incumb (int): cost of current solution
+        operator (Callable): selected operator
+
+    Returns:
+        tuple[np.array, int, int]: new solution, new cost, new_cost - current cost
+    """
+    new_sol = operator(
+        solution,
+        rng,
+        prob,
+    )
+    new_cost = cost_function(new_sol, prob)
+    delta_E = new_cost - cost_current
+    return new_sol, new_cost, delta_E
+
+
 def choose_operator(
     weights: list[float],
-    operators: list,
+    operators: list[Callable],
     rng: np.random.Generator,
     operators_len_range: int,
     thetas: list[int],
-) -> tuple:
+) -> tuple[int, Callable]:
     """This function takes the list of operators and their weights and returns the selected operator
 
     Args:
@@ -216,7 +237,7 @@ def choose_operator(
         thetas (list[int]): list of number of times each operator has been selected
 
     Returns:
-        tuple: selected operator and its index
+        tuple[int, Callable]: selected operator and its index
     """
     op_id = rng.choice(operators_len_range, replace=True, p=weights)
     operator = operators[op_id]
