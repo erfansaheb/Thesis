@@ -87,9 +87,9 @@ def ALNS(
             print(weights)
             warm_up += 100
         if itr < warm_up:
-            op_id = rng.choice(operators_len_range, replace=True, p=probability)
-            operator = operators[op_id]
-            thetas[op_id] += 1
+            op_id, operator = choose_operator(
+                probability, operators, rng, operators_len_range, thetas
+            )
             new_sol = operator(
                 incumbent,
                 rng,
@@ -197,3 +197,28 @@ def ALNS(
 
             T *= alpha
     return best_sol, best_cost, last_improvement, ws, feas_sols
+
+
+def choose_operator(
+    probability: list[float],
+    operators: list,
+    rng: np.random.Generator,
+    operators_len_range: int,
+    thetas: list[int],
+) -> tuple:
+    """This function takes the list of operators and their weights and returns the selected operator
+
+    Args:
+        probability (list[float]): list of operator selection weights
+        operators (list): list of operators
+        rng (np.random.Generator): random generator(seeded)
+        operators_len_range (int): number of operators
+        thetas (list[int]): list of number of times each operator has been selected
+
+    Returns:
+        tuple: selected operator and its index
+    """
+    op_id = rng.choice(operators_len_range, replace=True, p=probability)
+    operator = operators[op_id]
+    thetas[op_id] += 1
+    return op_id, operator
