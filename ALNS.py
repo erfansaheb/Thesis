@@ -25,7 +25,7 @@ def update_weights(
     return new_weights
 
 
-def normalize_weights(weights: np.array[float], threshold: float = 0.05) -> np.array:
+def normalize_weights(weights: np.array(float), threshold: float = 0.05) -> np.array:
     """This function normalizes the weights to prevent any of them from getting zero
 
     Args:

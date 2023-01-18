@@ -50,8 +50,6 @@ def multi_week_swap(
     return sol
 
 
-# home away flip
-# one
 def one_game_flip(
     solution: np.array, rng: np.random.Generator, problem: dict
 ) -> np.array:
@@ -72,7 +70,6 @@ def one_game_flip(
     return sol
 
 
-# multi
 def multi_game_flip(
     solution: np.array, rng: np.random.Generator, problem: dict
 ) -> np.array:
