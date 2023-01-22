@@ -214,7 +214,7 @@ def do_iteration(
     return best_sol, best_cost, scores, thetas, last_improvement, delta
 
 
-def calc_acc_prb(delta_E, T, phase=None):
+def calc_acc_prb(delta_E: int, T: float, phase: str = None) -> float:
     return 0.8 if phase == "warm_up" else np.exp(-delta_E / T)
 
 
