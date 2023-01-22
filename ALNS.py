@@ -87,7 +87,7 @@ def ALNS(
         weights,
         ws,
     ) = initiate_ALNS(init_sol, init_cost, probability, operators)
-    for itr in range(1000):
+    for itr in range(10000):
         if itr == warm_up and np.mean(delta) == 0:
             warm_up = _update_warm_up_number(warm_up)
         if itr < warm_up:
