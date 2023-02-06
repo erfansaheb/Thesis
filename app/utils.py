@@ -465,16 +465,9 @@ def cost_function(Solution, problem):
 
 def feasibility_check(Solution, problem):
     ca, ga, ba, fa, sa = problem["feas_constr"].values()
-    status, feasibility = "Feasible", True
-    for i in range(len(Solution)):
-        if (
-            len(np.unique(np.concatenate([Solution[i, :], Solution[:, i]])))
-            != len(Solution) * 2 - 1
-        ):
-            feasibility = False
-            print(i)
-            status = "Incompatible solution, at least one team has more than one game on the same time slot"
-            return status, feasibility
+    status, feasibility = compatibility_check(Solution)
+    if not feasibility:
+        return (status, feasibility)
     for i, cc in enumerate(ca):
         if len(cc) == 0:
             continue
@@ -806,6 +799,26 @@ def feasibility_check(Solution, problem):
     return status, feasibility
 
 
+def compatibility_check(Solution: np.array) -> bool:
+    for i in range(len(Solution)):
+        weeks, counts = np.unique(
+            np.concatenate([Solution[i, :], Solution[:, i]]), return_counts=True
+        )
+        dummy_week = True if weeks[-1] == (len(Solution) - 1) * 2 else False
+        if dummy_week:
+            if (counts[1:-1] > 1).any():
+                return (
+                    "Incompatible solution, at least one team has more than one game on the same time slot",
+                    False,
+                )
+        elif (counts[1:] > 1).any():
+            return (
+                "Incompatible solution, at least one team has more than one game on the same time slot",
+                False,
+            )
+    return "Compatible", True
+
+
 def load_solution(file, sol):
     # load file
     with open(file, "r") as f:
@@ -828,7 +841,7 @@ def random_init_sol(sol, problem, rng):
     x = teams_list[0 : int(len(teams_list) / 2)]
     y = teams_list[int(len(teams_list) / 2) : len(teams_list)]
     matches = []
-    for i in range(len(teams_list)):
+    for i in range(len(teams_list) - 1):
         rounds = {}
         if i != 0:
             x.insert(1, y.pop(0))
@@ -843,14 +856,14 @@ def random_init_sol(sol, problem, rng):
     x = teams_list[0 : int(len(teams_list) / 2)]
     y = teams_list[int(len(teams_list) / 2) : len(teams_list)]
     # matches = []
-    for i in range(len(teams_list)):
+    for i in range(len(teams_list) - 1):
         if i != 0:
             x.insert(1, y.pop(0))
             y.append(x.pop())
         # matches.append(rounds)
         for j in range(len(x)):
             if sol[x[j], y[j]] == -1:
-                sol[x[j], y[j]] = i + len(teams_list)
+                sol[x[j], y[j]] = i + len(teams_list) - 1
             else:
-                sol[y[j], x[j]] = i + len(teams_list)
+                sol[y[j], x[j]] = i + len(teams_list) - 1
     return sol

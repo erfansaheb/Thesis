@@ -1,5 +1,5 @@
 import numpy as np
-from Utils import cost_function, feasibility_check
+from app.utils import cost_function, feasibility_check
 from typing import Callable
 
 
