@@ -1,10 +1,10 @@
-from Utils import (
+from app.utils import (
     load_problem,
     cost_function,
 )
 from time import time
-from ALNS import ALNS
-from Operators import one_week_swap, multi_week_swap, one_game_flip, multi_game_flip
+from app.ALNS import ALNS
+from app.Operators import one_week_swap, multi_week_swap, one_game_flip, multi_game_flip
 import numpy as np
 import pandas as pd
 
