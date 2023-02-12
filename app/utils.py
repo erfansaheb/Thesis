@@ -193,7 +193,7 @@ def load_game_constraints(game_constraints: OrderedDict) -> tuple[list, list]:
         for num in ga1:
             const = {
                 "meetings": [
-                    [int(y), int(z)]
+                    (int(y), int(z))
                     for y, z in (x.split(",") for x in num["@meetings"].split(";") if x)
                 ],
                 "slots": [int(x) for x in num["@slots"].split(";")],
@@ -333,18 +333,16 @@ def cost_function(Solution, problem):
         if len(gc) == 0:
             continue
         for c in gc:  # GA1 constraints
-            p = 0
-            for meeting in c["meetings"]:
-                p += np.sum(Solution[tuple(meeting)] == c["slots"])
-            if p < c["min"]:
-                obj += (c["min"] - p) * c["penalty"]
-            elif p > c["max"]:
-                obj += (p - c["max"]) * c["penalty"]
+            p = sum(
+                np.sum(Solution[meeting] == c["slots"]) for meeting in c["meetings"]
+            )
+            obj += compute_penalty(c, p, "min")
+            obj += compute_penalty(c, p, "max")
     for i, bc in enumerate(ba):
         if len(bc) == 0:
             continue
-        if i == 0:  # BR1 constraints
-            for c in bc:
+        for c in bc:
+            if i == 0:  # BR1 constraints
                 for team in c["teams"]:
                     p = 0
                     for slot in c["slots"]:
@@ -360,8 +358,7 @@ def cost_function(Solution, problem):
                             p += cur == prev and not cur
                     if p > c["intp"]:
                         obj += (p - c["intp"]) * c["penalty"]
-        elif i == 1:  # BR2 constraints
-            for c in bc:
+            elif i == 1:  # BR2 constraints
                 p = 0
                 for team in c["teams"]:
                     for slot in c["slots"]:
@@ -810,8 +807,11 @@ def random_init_sol(sol, problem, rng):
     return sol
 
 
-def compute_penalty(c, p):
-    return max([p - c["max"], 0]) * c["penalty"]
+def compute_penalty(c, p, extremum="max"):
+    if extremum == "max":
+        return max([p - c[extremum], 0]) * c["penalty"]
+    elif extremum == "min":
+        return max([c[extremum] - p, 0]) * c["penalty"]
 
 
 def check_games_in_slots(problem, obj, c, slots):
