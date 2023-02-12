@@ -87,6 +87,7 @@ def load_separation_constraints(
                 "min": int(num["@min"]),
                 "mode1": num["@mode1"],
                 "penalty": int(num["@penalty"]),
+                "type": num["@type"],
             }
             if num["@type"] == "HARD":
                 sa_hard[i].append(const)
@@ -122,6 +123,7 @@ def load_fairness_constraints(
                 "intp": int(num["@intp"]),
                 "mode": num["@mode"],
                 "penalty": int(num["@penalty"]),
+                "type": num["@type"],
             }
             if num["@type"] == "HARD":
                 fa_hard[i].append(const)
@@ -157,6 +159,7 @@ def load_break_constraints(
                 "intp": int(num["@intp"]),
                 "mode2": num["@mode2"],
                 "penalty": int(num["@penalty"]),
+                "type": num["@type"],
             }
             if "@mode1" in num.keys():
                 const["mode1"] = num["@mode1"]
@@ -197,6 +200,7 @@ def load_game_constraints(game_constraints: OrderedDict) -> tuple[list, list]:
                 "max": int(num["@max"]),
                 "min": int(num["@min"]),
                 "penalty": int(num["@penalty"]),
+                "type": num["@type"],
             }
             if num["@type"] == "HARD":
                 ga_hard[i].append(const)
@@ -228,6 +232,7 @@ def load_capacity_constraints(capacity_constraints: OrderedDict) -> tuple[list, 
                 "max": int(num["@max"]),
                 "min": int(num["@min"]),
                 "penalty": int(num["@penalty"]),
+                "type": num["@type"],
             }
             if "@teams" in num.keys():
                 const["teams"] = [int(x) for x in num["@teams"].split(";")]
@@ -273,40 +278,29 @@ def cost_function(Solution, problem):
             continue
         if i == 0:  # CA1 constraints
             for c in cc:
-                for team in c["teams"]:
-                    p = 0
+                p = np.zeros(len(c["teams"]), dtype=int)
+                for slot in c["slots"]:
                     if c["mode"] == "H":
-                        p += np.sum(
-                            np.transpose(Solution[team : team + 1, :]) == c["slots"]
-                        )
+                        p += np.sum(Solution[c["teams"], :] == slot, axis=1)
                     else:
-                        p += np.sum(Solution[:, team : team + 1] == c["slots"])
-                    if p > c["max"]:
-                        obj += (p - c["max"]) * c["penalty"]
+                        p += np.sum(Solution[:, c["teams"]] == slot, axis=0)
+                obj += max([(p - c["max"]).sum(), 0]) * c["penalty"]
         elif i == 1:  # CA2 constraints
             for c in cc:
                 if c["mode1"] == "HA":
                     for team1 in c["teams1"]:
-                        p = 0
-                        for team2 in c["teams2"]:
-                            p += np.sum(Solution[team1, team2] == c["slots"])
-                            p += np.sum(Solution[team2, team1] == c["slots"])
-                        if p > c["max"]:
-                            obj += (p - c["max"]) * c["penalty"]
+                        p = np.sum(
+                            np.isin(Solution[team1, c["teams2"]], c["slots"])
+                        ) + np.sum(np.isin(Solution[c["teams2"], team1], c["slots"]))
+                        obj += max([p - c["max"], 0]) * c["penalty"]
                 elif c["mode1"] == "H":
                     for team1 in c["teams1"]:
-                        p = 0
-                        for team2 in c["teams2"]:
-                            p += np.sum(Solution[team1, team2] == c["slots"])
-                        if p > c["max"]:
-                            obj += (p - c["max"]) * c["penalty"]
+                        p = np.sum(np.isin(Solution[team1, c["teams2"]], c["slots"]))
+                        obj += max([p - c["max"], 0]) * c["penalty"]
                 else:
                     for team1 in c["teams1"]:
-                        p = 0
-                        for team2 in c["teams2"]:
-                            p += np.sum(Solution[team2, team1] == c["slots"])
-                        if p > c["max"]:
-                            obj += (p - c["max"]) * c["penalty"]
+                        p = np.sum(np.isin(Solution[c["teams2"], team1], c["slots"]))
+                        obj += max([p - c["max"], 0]) * c["penalty"]
         elif i == 2:  # CA3 constraints
             for c in cc:
                 if c["mode1"] == "HA":
