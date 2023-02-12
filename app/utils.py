@@ -276,17 +276,17 @@ def cost_function(Solution, problem):
     for i, cc in enumerate(ca):
         if len(cc) == 0:
             continue
-        if i == 0:  # CA1 constraints
-            for c in cc:
+        for c in cc:
+            if i == 0:  # CA1 constraints
                 p = np.zeros(len(c["teams"]), dtype=int)
                 for slot in c["slots"]:
-                    if c["mode"] == "H":
-                        p += np.sum(Solution[c["teams"], :] == slot, axis=1)
-                    else:
-                        p += np.sum(Solution[:, c["teams"]] == slot, axis=0)
+                    p += (
+                        np.sum(Solution[c["teams"], :] == slot, axis=1)
+                        if c["mode"] == "H"
+                        else np.sum(Solution[:, c["teams"]] == slot, axis=0)
+                    )
                 obj += max([(p - c["max"]).sum(), 0]) * c["penalty"]
-        elif i == 1:  # CA2 constraints
-            for c in cc:
+            elif i == 1:  # CA2 constraints
                 for team1 in c["teams1"]:
                     if c["mode1"] == "HA":
                         p = np.sum(
@@ -297,8 +297,7 @@ def cost_function(Solution, problem):
                     else:
                         p = np.sum(np.isin(Solution[c["teams2"], team1], c["slots"]))
                     obj += compute_penalty(c, p)
-        elif i == 2:  # CA3 constraints
-            for c in cc:
+            elif i == 2:  # CA3 constraints
                 for team in c["teams1"]:
                     slots_H = Solution[team, c["teams2"]]
                     slots_A = Solution[c["teams2"], team]
@@ -309,8 +308,7 @@ def cost_function(Solution, problem):
                         obj = check_games_in_slots(problem, obj, c, slots_H)
                     else:
                         obj = check_games_in_slots(problem, obj, c, slots_A)
-        else:  # CA4 constraints
-            for c in cc:
+            else:  # CA4 constraints
                 slots_H = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
                 slots_A = Solution[np.ix_(c["teams2"], c["teams1"])].flatten()
                 slots = np.concatenate([slots_A, slots_H])
