@@ -311,50 +311,26 @@ def cost_function(Solution, problem):
                         obj = check_games_in_slots(problem, obj, c, slots_A)
         else:  # CA4 constraints
             for c in cc:
-                if c["mode1"] == "HA":
-                    if c["mode2"] == "GLOBAL":
-                        p = 0
-                        slots_H = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
-                        slots_A = Solution[np.ix_(c["teams2"], c["teams1"])].flatten()
-                        slots = np.concatenate([slots_A, slots_H])
-                        for slot in c["slots"]:
-                            p += np.sum(slots == slot)
-                        if p > c["max"]:
-                            obj += (p - c["max"]) * c["penalty"]
+                slots_H = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
+                slots_A = Solution[np.ix_(c["teams2"], c["teams1"])].flatten()
+                slots = np.concatenate([slots_A, slots_H])
+                if c["mode2"] == "GLOBAL":
+                    if c["mode1"] == "HA":
+                        p = np.sum(np.isin(slots, c["slots"]))
+                    elif c["mode1"] == "H":
+                        p = np.sum(np.isin(slots_H, c["slots"]))
                     else:
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
-                        for slot in c["slots"]:
-                            p = np.sum(slots == slot)
-                            if p > c["max"]:
-                                obj += (p - c["max"]) * c["penalty"]
-                elif c["mode1"] == "H":
-                    if c["mode2"] == "GLOBAL":
-                        p = 0
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
-                        for slot in c["slots"]:
-                            p += np.sum(slots == slot)
-                        if p > c["max"]:
-                            obj += (p - c["max"]) * c["penalty"]
-                    else:
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
-                        for slot in c["slots"]:
-                            p = np.sum(slots == slot)
-                            if p > c["max"]:
-                                obj += (p - c["max"]) * c["penalty"]
+                        p = np.sum(np.isin(slots_A, c["slots"]))
+                    obj += compute_penalty(c, p)
                 else:
-                    if c["mode2"] == "GLOBAL":
-                        p = 0
-                        slots = Solution[np.ix_(c["teams2"], c["teams1"])].flatten()
-                        for slot in c["slots"]:
-                            p += np.sum(slots == slot)
-                        if p > c["max"]:
-                            obj += (p - c["max"]) * c["penalty"]
-                    else:
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
-                        for slot in c["slots"]:
+                    for slot in c["slots"]:
+                        if c["mode1"] == "HA":
                             p = np.sum(slots == slot)
-                            if p > c["max"]:
-                                obj += (p - c["max"]) * c["penalty"]
+                        elif c["mode1"] == "H":
+                            p = np.sum(slots_H == slot)
+                        else:
+                            p = np.sum(slots_A == slot)
+                        obj += compute_penalty(c, p)
     for i, gc in enumerate(ga):
         if len(gc) == 0:
             continue
