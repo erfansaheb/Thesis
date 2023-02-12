@@ -299,39 +299,16 @@ def cost_function(Solution, problem):
                     obj += compute_penalty(c, p)
         elif i == 2:  # CA3 constraints
             for c in cc:
-                if c["mode1"] == "HA":
-                    for team in c["teams1"]:
-                        slots_H = Solution[team, c["teams2"]]
-                        slots_A = Solution[c["teams2"], team]
-                        slots = np.concatenate([slots_A, slots_H])
-                        for s in range(c["intp"], problem["n_slots"] + 1):
-                            p = np.sum(
-                                np.logical_and((slots < s), (slots >= s - c["intp"]))
-                            )
-                            if p > c["max"]:
-                                obj += (p - c["max"]) * c["penalty"]
-                elif c["mode1"] == "H":
-                    for team in c["teams1"]:
-                        slots_H = Solution[team, c["teams2"]]
-                        for s in range(c["intp"], problem["n_slots"] + 1):
-                            p = np.sum(
-                                np.logical_and(
-                                    (slots_H < s), (slots_H >= s - c["intp"])
-                                )
-                            )
-                            if p > c["max"]:
-                                obj += (p - c["max"]) * c["penalty"]
-                else:
-                    for team in c["teams1"]:
-                        slots_A = Solution[c["teams2"], team]
-                        for s in range(c["intp"], problem["n_slots"] + 1):
-                            p = np.sum(
-                                np.logical_and(
-                                    (slots_A < s), (slots_A >= s - c["intp"])
-                                )
-                            )
-                            if p > c["max"]:
-                                obj += (p - c["max"]) * c["penalty"]
+                for team in c["teams1"]:
+                    slots_H = Solution[team, c["teams2"]]
+                    slots_A = Solution[c["teams2"], team]
+                    slots = np.concatenate([slots_A, slots_H])
+                    if c["mode1"] == "HA":
+                        obj = check_games_in_slots(problem, obj, c, slots)
+                    elif c["mode1"] == "H":
+                        obj = check_games_in_slots(problem, obj, c, slots_H)
+                    else:
+                        obj = check_games_in_slots(problem, obj, c, slots_A)
         else:  # CA4 constraints
             for c in cc:
                 if c["mode1"] == "HA":
@@ -861,3 +838,10 @@ def random_init_sol(sol, problem, rng):
 
 def compute_penalty(c, p):
     return max([p - c["max"], 0]) * c["penalty"]
+
+
+def check_games_in_slots(problem, obj, c, slots):
+    for s in range(c["intp"], problem["n_slots"] + 1):
+        p = np.sum(np.logical_and((slots < s), (slots >= s - c["intp"])))
+        obj += compute_penalty(c, p)
+    return obj
