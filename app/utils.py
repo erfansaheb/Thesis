@@ -287,20 +287,16 @@ def cost_function(Solution, problem):
                 obj += max([(p - c["max"]).sum(), 0]) * c["penalty"]
         elif i == 1:  # CA2 constraints
             for c in cc:
-                if c["mode1"] == "HA":
-                    for team1 in c["teams1"]:
+                for team1 in c["teams1"]:
+                    if c["mode1"] == "HA":
                         p = np.sum(
                             np.isin(Solution[team1, c["teams2"]], c["slots"])
                         ) + np.sum(np.isin(Solution[c["teams2"], team1], c["slots"]))
-                        obj += max([p - c["max"], 0]) * c["penalty"]
-                elif c["mode1"] == "H":
-                    for team1 in c["teams1"]:
+                    elif c["mode1"] == "H":
                         p = np.sum(np.isin(Solution[team1, c["teams2"]], c["slots"]))
-                        obj += max([p - c["max"], 0]) * c["penalty"]
-                else:
-                    for team1 in c["teams1"]:
+                    else:
                         p = np.sum(np.isin(Solution[c["teams2"], team1], c["slots"]))
-                        obj += max([p - c["max"], 0]) * c["penalty"]
+                    obj += compute_penalty(c, p)
         elif i == 2:  # CA3 constraints
             for c in cc:
                 if c["mode1"] == "HA":
@@ -861,3 +857,7 @@ def random_init_sol(sol, problem, rng):
             else:
                 sol[y[j], x[j]] = i + len(teams_list) - 1
     return sol
+
+
+def compute_penalty(c, p):
+    return max([p - c["max"], 0]) * c["penalty"]
