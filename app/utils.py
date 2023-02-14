@@ -155,7 +155,7 @@ def load_break_constraints(
         for num in bc:
             const = {
                 "teams": [int(x) for x in num["@teams"].split(";")],
-                "slots": [int(x) for x in num["@slots"].split(";")],
+                "slots": sorted([int(x) for x in num["@slots"].split(";")]),
                 "intp": int(num["@intp"]),
                 "mode2": num["@mode2"],
                 "penalty": int(num["@penalty"]),
