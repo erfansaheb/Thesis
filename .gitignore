@@ -1,0 +1,7 @@
+*.xml
+*.R
+*.flake8
+*.json
+*.pyc
+*.csv
+*.txt
