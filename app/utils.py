@@ -802,7 +802,7 @@ def random_init_sol(sol, problem, rng):
 
 
 def compute_penalty(c, p, extremum="max"):
-    if extremum == "max":
+    if extremum in ["max", "intp"]:
         return max([p - c[extremum], 0]) * c["penalty"]
     elif extremum == "min":
         return max([c[extremum] - p, 0]) * c["penalty"]
