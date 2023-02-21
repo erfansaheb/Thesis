@@ -342,7 +342,7 @@ def cost_function(Solution, problem):
         if len(bc) == 0:
             continue
         for c in bc:
-            if i == 0:  # BR1 constraints
+            if i == 0:
                 check_zero = 1 if c["slots"][0] == 0 else 0
                 for team in c["teams"]:
                     p = sum(
@@ -352,17 +352,22 @@ def cost_function(Solution, problem):
                         )
                     )
                     obj += compute_penalty(c, p, "intp")
-            elif i == 1:  # BR2 constraints
-                p = 0
-                for team in c["teams"]:
-                    for slot in c["slots"]:
-                        if slot == 0:
-                            continue
-                        cur = (Solution[team, :] == slot).any()
-                        prev = (Solution[team, :] == slot - 1).any()
-                        p += cur == prev
-                if p > c["intp"]:
-                    obj += (p - c["intp"]) * c["penalty"]
+            elif i == 1:
+                check_zero = 1 if c["slots"][0] == 0 else 0
+                p = sum(
+                    sum(
+                        np.isin(
+                            np.array(c["slots"][check_zero:]),
+                            Solution[team, :],
+                        )
+                        == np.isin(
+                            np.array(c["slots"][check_zero:]) - 1,
+                            Solution[team, :],
+                        )
+                    )
+                    for team in c["teams"]
+                )
+                obj += compute_penalty(c, p, "intp")
     for i, fc in enumerate(fa):
         if len(fc) == 0:
             continue
