@@ -2,6 +2,22 @@
 
 import numpy as np
 
+
+class Solution:
+    representative: np.array
+    total_cost: int = 0
+    teams_cost: np.array
+    games_cost: np.array
+    slots_cost: np.array
+
+    def __init__(self, representative, total_cost, teams_cost, games_cost, slots_cost):
+        self.representative = representative
+        self.total_cost = total_cost
+        self.teams_cost = teams_cost
+        self.games_cost = games_cost
+        self.slots_cost = slots_cost
+
+
 # Solution = namedtuple(
 #     "Solution",
 #     ["representative", "total_cost", "teams_cost", "games_cost", "slots_cost"],
@@ -43,18 +59,3 @@ import numpy as np
 #         "type",
 #     ],
 # )
-
-
-class Solution:
-    representative: np.array
-    total_cost: int = 0
-    teams_cost: np.array
-    games_cost: np.array
-    slots_cost: np.array
-
-    def __init__(self, representative, total_cost, teams_cost, games_cost, slots_cost):
-        self.representative = representative
-        self.total_cost = total_cost
-        self.teams_cost = teams_cost
-        self.games_cost = games_cost
-        self.slots_cost = slots_cost
