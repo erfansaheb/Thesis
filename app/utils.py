@@ -118,8 +118,8 @@ def load_fairness_constraints(
             fc = [fairness_constraints[f]]
         for num in fc:
             const = {
-                "teams": [int(x) for x in num["@teams"].split(";")],
-                "slots": [int(x) for x in num["@slots"].split(";")],
+                "teams": sorted([int(x) for x in num["@teams"].split(";")]),
+                "slots": sorted([int(x) for x in num["@slots"].split(";")]),
                 "intp": int(num["@intp"]),
                 "mode": num["@mode"],
                 "penalty": int(num["@penalty"]),
@@ -374,16 +374,11 @@ def cost_function(Solution, problem):
         for c in fc:  # FA1 constraints
             diff = np.zeros([len(c["teams"]), len(c["teams"])], dtype=int)
             for s in c["slots"]:
-                p = 0
-                home_count = np.zeros_like(c["teams"])
-                for team in c["teams"]:
-                    home_count[team] = (
-                        np.sum(Solution[team, :] <= s) - 1
-                    )  # excluding the column = team
+                home_count = (Solution[c["teams"], :] <= s).sum(
+                    axis=1
+                ) - 1  # excluding the column = team
                 for i, j in combinations(c["teams"], 2):
                     diff[i, j] = max(abs(home_count[i] - home_count[j]), diff[i, j])
-                    # if diff[i,j] > c['intp']:
-                    #     p += (diff - c['intp'])
             diff -= c["intp"]
             diff[diff < 0] = 0
             obj += np.sum(diff) * c["penalty"]
@@ -395,8 +390,7 @@ def cost_function(Solution, problem):
                 first = Solution[team1, team2]
                 second = Solution[team2, team1]
                 diff = abs(second - first) - 1
-                if diff < c["min"]:
-                    obj += (c["min"] - diff) * c["penalty"]
+                obj += compute_penalty(c, diff, "min")
     return obj
 
 
