@@ -1,7 +1,7 @@
 from app.utils import (
-    load_problem,
     cost_function,
 )
+from app.load import load_problem
 from time import time
 from app.ALNS import ALNS
 from app.Operators import one_week_swap, multi_week_swap, one_game_flip, multi_game_flip

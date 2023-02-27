@@ -1,6 +1,8 @@
-from app.utils import (
+from app.load import (
     load_problem,
     load_solution,
+)
+from app.utils import (
     # feasibility_check,
     cost_function,
     # compatibility_check,
@@ -17,7 +19,7 @@ import numpy as np
 
 from app.named_tuples import Solution
 
-problem = load_problem("Instances//LateInstances//ITC2021_Late_9.xml")
+problem = load_problem("Instances//EarlyInstances_V3//ITC2021_Early_12.xml")
 solution = Solution(
     representative=np.ones((problem["n_teams"], problem["n_teams"]), dtype=int) * (-1),
     total_cost=0,
@@ -30,7 +32,7 @@ solution = Solution(
 # compatibility_check(initial_sol)
 # sol = np.ones((problem["n_teams"], problem["n_teams"]), dtype=int) * (-1)
 solution.representative, solution.total_cost = load_solution(
-    "..//Appendix_Files//Final_Solutions//Late_instances//L9.xml",
+    "..//Appendix_Files//Final_Solutions//Early_instances//E12.xml",
     solution.representative.copy(),
 )
 print(cost_function(solution.representative, problem))
