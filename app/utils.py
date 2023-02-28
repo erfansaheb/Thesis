@@ -18,13 +18,12 @@ def cost_function(Solution, problem):
                         if c["mode"] == "H"
                         else np.sum(representative[:, c["teams"]] == slot, axis=0)
                     )
-                obj += max([(p - c["max"]).sum(), 0]) * c["penalty"]
+                penalty = max([(p - c["max"]).sum(), 0]) * c["penalty"]
+                update_costs(Solution, penalty, const_type=c["type"])
                 Solution.teams_cost[c["teams"]] += (
                     np.maximum((p[i] - c["max"]), 0) * c["penalty"]
                 )
-                Solution.slots_cost[c["slots"]] += (
-                    max([(p - c["max"]).sum(), 0]) * c["penalty"]
-                )
+                Solution.slots_cost[c["slots"]] += penalty
             elif i == 1:  # CA2 constraints
                 for team1 in c["teams1"]:
                     if c["mode1"] == "HA":
@@ -51,7 +50,7 @@ def cost_function(Solution, problem):
                         for meeting in meetings:
                             Solution.games_cost[meeting] += penalty
                         Solution.slots_cost[c["slots"]] += penalty
-                        obj += penalty
+                        update_costs(Solution, penalty, const_type=c["type"])
             elif i == 2:  # CA3 constraints
                 for team in c["teams1"]:
                     slots_H = representative[team, c["teams2"]]
@@ -73,6 +72,7 @@ def cost_function(Solution, problem):
                         slots_check = slots_A
                         meetings = list(product(c["teams2"], [team]))
                     if penalty := obj - obj_bef:
+                        update_costs(Solution, penalty, const_type=c["type"])
                         Solution.teams_cost[c["teams2"] + [team]] += penalty
                         for meeting in meetings:
                             Solution.games_cost[meeting] += penalty
@@ -98,20 +98,33 @@ def cost_function(Solution, problem):
                         meetings = list(product(c["teams2"], c["teams1"]))
 
                     if penalty := compute_penalty(c, p):
+                        update_costs(Solution, penalty, const_type=c["type"])
                         Solution.teams_cost[c["teams2"] + c["teams1"]] += penalty
                         for meeting in meetings:
                             Solution.games_cost[meeting] += penalty
                         Solution.slots_cost[slots_check] += penalty
-                        obj += penalty
                 else:
                     for slot in c["slots"]:
                         if c["mode1"] == "HA":
                             p = np.sum(slots == slot)
+                            slots_check = slots
+                            meetings = list(product(c["teams1"], c["teams2"])) + list(
+                                product(c["teams2"], c["teams1"])
+                            )
                         elif c["mode1"] == "H":
                             p = np.sum(slots_H == slot)
+                            slots_check = slots_H
+                            meetings = list(product(c["teams1"], c["teams2"]))
                         else:
                             p = np.sum(slots_A == slot)
-                        obj += compute_penalty(c, p)
+                            slots_check = slots_A
+                            meetings = list(product(c["teams2"], c["teams1"]))
+                        if penalty := compute_penalty(c, p) > 0:
+                            update_costs(Solution, penalty, const_type=c["type"])
+                            Solution.teams_cost[c["teams2"] + c["teams1"]] += penalty
+                            for meeting in meetings:
+                                Solution.games_cost[meeting] += penalty
+                            Solution.slots_cost[slots_check] += penalty
     for i, gc in enumerate(ga):
         if len(gc) == 0:
             continue
@@ -124,6 +137,7 @@ def cost_function(Solution, problem):
             obj += compute_penalty(c, p, "min")
             obj += compute_penalty(c, p, "max")
             if penalty := obj - obj_bef:
+                update_costs(Solution, penalty, const_type=c["type"])
                 for meeting in c["meetings"]:
                     Solution.teams_cost[[*meeting]] += penalty
                     Solution.games_cost[meeting] += penalty
@@ -145,7 +159,7 @@ def cost_function(Solution, problem):
                         )
                     )
                     if penalty := compute_penalty(c, p, "intp"):
-                        obj += penalty
+                        update_costs(Solution, penalty, const_type=c["type"])
                         Solution.teams_cost[team] += penalty
                         Solution.slots_cost[c["slots"]] += penalty
             elif i == 1:
@@ -164,7 +178,7 @@ def cost_function(Solution, problem):
                     for team in c["teams"]
                 )
                 if penalty := compute_penalty(c, p, "intp"):
-                    obj += penalty
+                    update_costs(Solution, penalty, const_type=c["type"])
                     Solution.teams_cost[c["teams"]] += penalty / len(c["teams"])
                     Solution.slots_cost[c["slots"]] += penalty / len(c["slots"])
     for i, fc in enumerate(fa):
@@ -184,7 +198,8 @@ def cost_function(Solution, problem):
                         Solution.slots_cost[s] += c["penalty"]
             diff -= c["intp"]
             diff[diff < 0] = 0
-            obj += np.sum(diff) * c["penalty"]
+            if penalty := np.sum(diff) * c["penalty"] > 0:
+                update_costs(Solution, penalty, const_type=c["type"])
     for i, sc in enumerate(sa):
         if len(sc) == 0:
             continue
@@ -194,12 +209,12 @@ def cost_function(Solution, problem):
                 second = representative[team2, team1]
                 diff = abs(second - first) - 1
                 if penalty := compute_penalty(c, diff, "min"):
-                    obj += penalty
+                    update_costs(Solution, penalty, const_type=c["type"])
                     Solution.teams_cost[[team1, team2]] += penalty
                     Solution.slots_cost[[first, second]] += penalty
                     Solution.games_cost[team1, team2] += penalty
                     Solution.games_cost[team2, team1] += penalty
-    return obj
+    return Solution.obj_fun
 
 
 def feasibility_check(Solution, problem):
@@ -624,8 +639,12 @@ def check_games_in_slots(problem, obj, c, slots):
     return obj
 
 
-
-
-def add_cost_for_teams(Solution, team, penalty):
-
+def update_costs(Solution, penalty, const_type, hard_const_degree=10):
+    if const_type == "SOFT":
+        Solution.obj_fun += penalty
+        Solution.soft_cost += penalty
+        Solution.total_cost += penalty
+    elif const_type == "HARD":
+        Solution.hard_cost += penalty
+        Solution.total_cost += penalty * hard_const_degree
     return
