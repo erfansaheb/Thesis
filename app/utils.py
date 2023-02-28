@@ -1,8 +1,9 @@
-from itertools import combinations
+from itertools import combinations, product
 import numpy as np
 
 
 def cost_function(Solution, problem):
+    representative = Solution.representative
     ca, ga, ba, fa, sa = problem["obj_constr"].values()
     obj = 0
     for i, cc in enumerate(ca):
@@ -13,45 +14,95 @@ def cost_function(Solution, problem):
                 p = np.zeros(len(c["teams"]), dtype=int)
                 for slot in c["slots"]:
                     p += (
-                        np.sum(Solution[c["teams"], :] == slot, axis=1)
+                        np.sum(representative[c["teams"], :] == slot, axis=1)
                         if c["mode"] == "H"
-                        else np.sum(Solution[:, c["teams"]] == slot, axis=0)
+                        else np.sum(representative[:, c["teams"]] == slot, axis=0)
                     )
                 obj += max([(p - c["max"]).sum(), 0]) * c["penalty"]
+                Solution.teams_cost[c["teams"]] += (
+                    np.maximum((p[i] - c["max"]), 0) * c["penalty"]
+                )
+                Solution.slots_cost[c["slots"]] += (
+                    max([(p - c["max"]).sum(), 0]) * c["penalty"]
+                )
             elif i == 1:  # CA2 constraints
                 for team1 in c["teams1"]:
                     if c["mode1"] == "HA":
                         p = np.sum(
-                            np.isin(Solution[team1, c["teams2"]], c["slots"])
-                        ) + np.sum(np.isin(Solution[c["teams2"], team1], c["slots"]))
+                            np.isin(representative[team1, c["teams2"]], c["slots"])
+                        ) + np.sum(
+                            np.isin(representative[c["teams2"], team1], c["slots"])
+                        )
+                        meetings = list(product([team1], c["teams2"])) + list(
+                            product(c["teams2"], [team1])
+                        )
                     elif c["mode1"] == "H":
-                        p = np.sum(np.isin(Solution[team1, c["teams2"]], c["slots"]))
+                        p = np.sum(
+                            np.isin(representative[team1, c["teams2"]], c["slots"])
+                        )
+                        meetings = list(product([team1], c["teams2"]))
                     else:
-                        p = np.sum(np.isin(Solution[c["teams2"], team1], c["slots"]))
-                    obj += compute_penalty(c, p)
+                        p = np.sum(
+                            np.isin(representative[c["teams2"], team1], c["slots"])
+                        )
+                        meetings = list(product(c["teams2"], [team1]))
+                    if penalty := compute_penalty(c, p):
+                        Solution.teams_cost[c["teams2"] + [team1]] += penalty
+                        for meeting in meetings:
+                            Solution.games_cost[meeting] += penalty
+                        Solution.slots_cost[c["slots"]] += penalty
+                        obj += penalty
             elif i == 2:  # CA3 constraints
                 for team in c["teams1"]:
-                    slots_H = Solution[team, c["teams2"]]
-                    slots_A = Solution[c["teams2"], team]
+                    slots_H = representative[team, c["teams2"]]
+                    slots_A = representative[c["teams2"], team]
                     slots = np.concatenate([slots_A, slots_H])
+                    obj_bef = obj
                     if c["mode1"] == "HA":
                         obj = check_games_in_slots(problem, obj, c, slots)
+                        slots_check = slots
+                        meetings = list(product([team], c["teams2"])) + list(
+                            product(c["teams2"], [team])
+                        )
                     elif c["mode1"] == "H":
                         obj = check_games_in_slots(problem, obj, c, slots_H)
+                        slots_check = slots_H
+                        meetings = list(product([team], c["teams2"]))
                     else:
                         obj = check_games_in_slots(problem, obj, c, slots_A)
+                        slots_check = slots_A
+                        meetings = list(product(c["teams2"], [team]))
+                    if penalty := obj - obj_bef:
+                        Solution.teams_cost[c["teams2"] + [team]] += penalty
+                        for meeting in meetings:
+                            Solution.games_cost[meeting] += penalty
+                        Solution.slots_cost[slots_check] += penalty
             else:  # CA4 constraints
-                slots_H = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
-                slots_A = Solution[np.ix_(c["teams2"], c["teams1"])].flatten()
+                slots_H = representative[np.ix_(c["teams1"], c["teams2"])].flatten()
+                slots_A = representative[np.ix_(c["teams2"], c["teams1"])].flatten()
                 slots = np.concatenate([slots_A, slots_H])
                 if c["mode2"] == "GLOBAL":
                     if c["mode1"] == "HA":
                         p = np.sum(np.isin(slots, c["slots"]))
+                        slots_check = slots
+                        meetings = list(product(c["teams1"], c["teams2"])) + list(
+                            product(c["teams2"], c["teams1"])
+                        )
                     elif c["mode1"] == "H":
                         p = np.sum(np.isin(slots_H, c["slots"]))
+                        slots_check = slots_H
+                        meetings = list(product(c["teams1"], c["teams2"]))
                     else:
                         p = np.sum(np.isin(slots_A, c["slots"]))
-                    obj += compute_penalty(c, p)
+                        slots_check = slots_A
+                        meetings = list(product(c["teams2"], c["teams1"]))
+
+                    if penalty := compute_penalty(c, p):
+                        Solution.teams_cost[c["teams2"] + c["teams1"]] += penalty
+                        for meeting in meetings:
+                            Solution.games_cost[meeting] += penalty
+                        Solution.slots_cost[slots_check] += penalty
+                        obj += penalty
                 else:
                     for slot in c["slots"]:
                         if c["mode1"] == "HA":
@@ -66,10 +117,17 @@ def cost_function(Solution, problem):
             continue
         for c in gc:  # GA1 constraints
             p = sum(
-                np.sum(Solution[meeting] == c["slots"]) for meeting in c["meetings"]
+                np.sum(representative[meeting] == c["slots"])
+                for meeting in c["meetings"]
             )
+            obj_bef = obj
             obj += compute_penalty(c, p, "min")
             obj += compute_penalty(c, p, "max")
+            if penalty := obj - obj_bef:
+                for meeting in c["meetings"]:
+                    Solution.teams_cost[[*meeting]] += penalty
+                    Solution.games_cost[meeting] += penalty
+                Solution.slots_cost[c["slots"]] += penalty
     for i, bc in enumerate(ba):
         if len(bc) == 0:
             continue
@@ -78,39 +136,52 @@ def cost_function(Solution, problem):
                 check_zero = 1 if c["slots"][0] == 0 else 0
                 for team in c["teams"]:
                     p = sum(
-                        np.isin(np.array(c["slots"][check_zero:]), Solution[team, :])
+                        np.isin(
+                            np.array(c["slots"][check_zero:]), representative[team, :]
+                        )
                         == np.isin(
-                            np.array(c["slots"][check_zero:]) - 1, Solution[team, :]
+                            np.array(c["slots"][check_zero:]) - 1,
+                            representative[team, :],
                         )
                     )
-                    obj += compute_penalty(c, p, "intp")
+                    if penalty := compute_penalty(c, p, "intp"):
+                        obj += penalty
+                        Solution.teams_cost[team] += penalty
+                        Solution.slots_cost[c["slots"]] += penalty
             elif i == 1:
                 check_zero = 1 if c["slots"][0] == 0 else 0
                 p = sum(
                     sum(
                         np.isin(
                             np.array(c["slots"][check_zero:]),
-                            Solution[team, :],
+                            representative[team, :],
                         )
                         == np.isin(
                             np.array(c["slots"][check_zero:]) - 1,
-                            Solution[team, :],
+                            representative[team, :],
                         )
                     )
                     for team in c["teams"]
                 )
-                obj += compute_penalty(c, p, "intp")
+                if penalty := compute_penalty(c, p, "intp"):
+                    obj += penalty
+                    Solution.teams_cost[c["teams"]] += penalty / len(c["teams"])
+                    Solution.slots_cost[c["slots"]] += penalty / len(c["slots"])
     for i, fc in enumerate(fa):
         if len(fc) == 0:
             continue
         for c in fc:  # FA1 constraints
             diff = np.zeros([len(c["teams"]), len(c["teams"])], dtype=int)
             for s in c["slots"]:
-                home_count = (Solution[c["teams"], :] <= s).sum(
+                home_count = (representative[c["teams"], :] <= s).sum(
                     axis=1
                 ) - 1  # excluding the column = team
                 for i, j in combinations(c["teams"], 2):
-                    diff[i, j] = max(abs(home_count[i] - home_count[j]), diff[i, j])
+                    difference = abs(home_count[i] - home_count[j])
+                    diff[i, j] = max(difference, diff[i, j])
+                    if difference > c["intp"]:
+                        Solution.teams_cost[[i, j]] += c["penalty"]
+                        Solution.slots_cost[s] += c["penalty"]
             diff -= c["intp"]
             diff[diff < 0] = 0
             obj += np.sum(diff) * c["penalty"]
@@ -119,16 +190,22 @@ def cost_function(Solution, problem):
             continue
         for c in sc:  # SE1 constraints
             for team1, team2 in c["teams"]:
-                first = Solution[team1, team2]
-                second = Solution[team2, team1]
+                first = representative[team1, team2]
+                second = representative[team2, team1]
                 diff = abs(second - first) - 1
-                obj += compute_penalty(c, diff, "min")
+                if penalty := compute_penalty(c, diff, "min"):
+                    obj += penalty
+                    Solution.teams_cost[[team1, team2]] += penalty
+                    Solution.slots_cost[[first, second]] += penalty
+                    Solution.games_cost[team1, team2] += penalty
+                    Solution.games_cost[team2, team1] += penalty
     return obj
 
 
 def feasibility_check(Solution, problem):
+    representative = Solution.representative
     ca, ga, ba, fa, sa = problem["feas_constr"].values()
-    status, feasibility = compatibility_check(Solution)
+    status, feasibility = compatibility_check(representative)
     if not feasibility:
         return (status, feasibility)
     for i, cc in enumerate(ca):
@@ -140,10 +217,11 @@ def feasibility_check(Solution, problem):
                     p = 0
                     if c["mode"] == "H":
                         p += np.sum(
-                            np.transpose(Solution[team : team + 1, :]) == c["slots"]
+                            np.transpose(representative[team : team + 1, :])
+                            == c["slots"]
                         )
                     else:
-                        p += np.sum(Solution[:, team : team + 1] == c["slots"])
+                        p += np.sum(representative[:, team : team + 1] == c["slots"])
                     if p > c["max"]:
                         feasibility = False
                         status = "Team {} has {} more {} games than max= {} during time slots {}:\t {}".format(
@@ -156,8 +234,8 @@ def feasibility_check(Solution, problem):
                     for team1 in c["teams1"]:
                         p = 0
                         for team2 in c["teams2"]:
-                            p += np.sum(Solution[team1, team2] == c["slots"])
-                            p += np.sum(Solution[team2, team1] == c["slots"])
+                            p += np.sum(representative[team1, team2] == c["slots"])
+                            p += np.sum(representative[team2, team1] == c["slots"])
                         if p > c["max"]:
                             feasibility = False
                             status = "Team {} has {} more {} games than max= {} during time slots {} against teams {}:\t {}".format(
@@ -174,7 +252,7 @@ def feasibility_check(Solution, problem):
                     for team1 in c["teams1"]:
                         p = 0
                         for team2 in c["teams2"]:
-                            p += np.sum(Solution[team1, team2] == c["slots"])
+                            p += np.sum(representative[team1, team2] == c["slots"])
                         if p > c["max"]:
                             feasibility = False
                             status = "Team {} has {} more {} games than max= {} during time slots {} against teams {}:\t {}".format(
@@ -191,7 +269,7 @@ def feasibility_check(Solution, problem):
                     for team1 in c["teams1"]:
                         p = 0
                         for team2 in c["teams2"]:
-                            p += np.sum(Solution[team2, team1] == c["slots"])
+                            p += np.sum(representative[team2, team1] == c["slots"])
                         if p > c["max"]:
                             feasibility = False
                             status = "Team {} has {} more {} games than max= {} during time slots {} against teams {}:\t {}".format(
@@ -208,8 +286,8 @@ def feasibility_check(Solution, problem):
             for c in cc:
                 if c["mode1"] == "HA":
                     for team1 in c["teams1"]:
-                        slots_H = Solution[team, c["teams2"]]
-                        slots_A = Solution[c["teams2"], team]
+                        slots_H = representative[team, c["teams2"]]
+                        slots_A = representative[c["teams2"], team]
                         slots = np.concatenate([slots_A, slots_H])
                         for s in range(c["intp"], problem["n_slots"] + 1):
                             p = np.sum(
@@ -228,7 +306,7 @@ def feasibility_check(Solution, problem):
                                 return status, feasibility
                 elif c["mode1"] == "H":
                     for team1 in c["teams1"]:
-                        slots_H = Solution[team, c["teams2"]]
+                        slots_H = representative[team, c["teams2"]]
                         for s in range(c["intp"], problem["n_slots"] + 1):
                             p = np.sum(
                                 np.logical_and(
@@ -248,7 +326,7 @@ def feasibility_check(Solution, problem):
                                 return status, feasibility
                 else:
                     for team1 in c["teams1"]:
-                        slots_A = Solution[c["teams2"], team]
+                        slots_A = representative[c["teams2"], team]
                         for s in range(c["intp"], problem["n_slots"] + 1):
                             p = np.sum(
                                 np.logical_and(
@@ -271,8 +349,12 @@ def feasibility_check(Solution, problem):
                 if c["mode1"] == "HA":
                     if c["mode2"] == "GLOBAL":
                         p = 0
-                        slots_H = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
-                        slots_A = Solution[np.ix_(c["teams2"], c["teams1"])].flatten()
+                        slots_H = representative[
+                            np.ix_(c["teams1"], c["teams2"])
+                        ].flatten()
+                        slots_A = representative[
+                            np.ix_(c["teams2"], c["teams1"])
+                        ].flatten()
                         slots = np.concatenate([slots_A, slots_H])
                         for slot in c["slots"]:
                             p += np.sum(slots == slot)
@@ -288,7 +370,9 @@ def feasibility_check(Solution, problem):
                             )
                             return status, feasibility
                     else:
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
+                        slots = representative[
+                            np.ix_(c["teams1"], c["teams2"])
+                        ].flatten()
                         for slot in c["slots"]:
                             p = np.sum(slots == slot)
                             if p > c["max"]:
@@ -305,7 +389,9 @@ def feasibility_check(Solution, problem):
                 elif c["mode1"] == "H":
                     if c["mode2"] == "GLOBAL":
                         p = 0
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
+                        slots = representative[
+                            np.ix_(c["teams1"], c["teams2"])
+                        ].flatten()
                         for slot in c["slots"]:
                             p += np.sum(slots == slot)
                         if p > c["max"]:
@@ -320,7 +406,9 @@ def feasibility_check(Solution, problem):
                             )
                             return status, feasibility
                     else:
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
+                        slots = representative[
+                            np.ix_(c["teams1"], c["teams2"])
+                        ].flatten()
                         for slot in c["slots"]:
                             p = np.sum(slots == slot)
                             if p > c["max"]:
@@ -337,7 +425,9 @@ def feasibility_check(Solution, problem):
                 else:
                     if c["mode2"] == "GLOBAL":
                         p = 0
-                        slots = Solution[np.ix_(c["teams2"], c["teams1"])].flatten()
+                        slots = representative[
+                            np.ix_(c["teams2"], c["teams1"])
+                        ].flatten()
                         for slot in c["slots"]:
                             p += np.sum(slots == slot)
                         if p > c["max"]:
@@ -352,7 +442,9 @@ def feasibility_check(Solution, problem):
                             )
                             return status, feasibility
                     else:
-                        slots = Solution[np.ix_(c["teams1"], c["teams2"])].flatten()
+                        slots = representative[
+                            np.ix_(c["teams1"], c["teams2"])
+                        ].flatten()
                         for slot in c["slots"]:
                             p = np.sum(slots == slot)
                             if p > c["max"]:
@@ -372,7 +464,7 @@ def feasibility_check(Solution, problem):
         for c in gc:  # GA1 constraints
             p = 0
             for meeting in c["meetings"]:
-                p += np.sum(Solution[tuple(meeting)] == c["slots"])
+                p += np.sum(representative[tuple(meeting)] == c["slots"])
             if p < c["min"]:
                 feasibility = False
                 status = f"Less than min {c['min']} games from {c['meetings']} took place during time slots{c['slots']}:\t {p}"
@@ -391,8 +483,8 @@ def feasibility_check(Solution, problem):
                     for slot in c["slots"]:
                         if slot == 0:
                             continue
-                        cur = (Solution[team, :] == slot).any()
-                        prev = (Solution[team, :] == slot - 1).any()
+                        cur = (representative[team, :] == slot).any()
+                        prev = (representative[team, :] == slot - 1).any()
                         if c["mode2"] == "HA":
                             p += cur == prev
                         elif c["mode2"] == "H":
@@ -412,8 +504,8 @@ def feasibility_check(Solution, problem):
                     for slot in c["slots"]:
                         if slot == 0:
                             continue
-                        cur = (Solution[team, :] == slot).any()
-                        prev = (Solution[team, :] == slot - 1).any()
+                        cur = (representative[team, :] == slot).any()
+                        prev = (representative[team, :] == slot - 1).any()
                         p += cur == prev
                 if p > c["intp"]:
                     feasibility = False
@@ -431,7 +523,7 @@ def feasibility_check(Solution, problem):
                 home_count = np.zeros_like(c["teams"])
                 for team in c["teams"]:
                     home_count[team] = (
-                        np.sum(Solution[team, :] <= s) - 1
+                        np.sum(representative[team, :] <= s) - 1
                     )  # excluding the column = team
                 for i, j in combinations(c["teams"], 2):
                     diff[i, j] = max(abs(home_count[i] - home_count[j]), diff[i, j])
@@ -450,8 +542,8 @@ def feasibility_check(Solution, problem):
             continue
         for c in sc:  # SE1 constraints
             for team1, team2 in c["teams"]:
-                first = Solution[team1, team2]
-                second = Solution[team2, team1]
+                first = representative[team1, team2]
+                second = representative[team2, team1]
                 diff = abs(second - first) - 1
                 if diff < c["min"]:
                     feasibility = False
@@ -530,3 +622,10 @@ def check_games_in_slots(problem, obj, c, slots):
         p = np.sum(np.logical_and((slots < s), (slots >= s - c["intp"])))
         obj += compute_penalty(c, p)
     return obj
+
+
+
+
+def add_cost_for_teams(Solution, team, penalty):
+
+    return
