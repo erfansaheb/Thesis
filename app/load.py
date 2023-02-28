@@ -88,11 +88,10 @@ def load_separation_constraints(
                 "penalty": int(num["@penalty"]),
                 "type": num["@type"],
             }
-            if num["@type"] == "HARD":
-                const["penalty"] *= 10
-                sa_hard[i].append(const)
-            else:
-                sa_soft[i].append(const)
+            # if num["@type"] == "HARD":
+            #     sa_hard[i].append(const)
+            # else:
+            sa_soft[i].append(const)
     return sa_hard, sa_soft
 
 
@@ -125,11 +124,10 @@ def load_fairness_constraints(
                 "penalty": int(num["@penalty"]),
                 "type": num["@type"],
             }
-            if num["@type"] == "HARD":
-                const["penalty"] *= 10
-                fa_hard[i].append(const)
-            else:
-                fa_soft[i].append(const)
+            # if num["@type"] == "HARD":
+            #     fa_hard[i].append(const)
+            # else:
+            fa_soft[i].append(const)
     return fa_hard, fa_soft
 
 
@@ -166,11 +164,10 @@ def load_break_constraints(
                 const["mode1"] = num["@mode1"]
             elif "@homeMode" in num.keys():
                 const["homeMode"] = num["@homeMode"]
-            if num["@type"] == "HARD":
-                const["penalty"] *= 10
-                ba_hard[i].append(const)
-            else:
-                ba_soft[i].append(const)
+            # if num["@type"] == "HARD":
+            #     ba_hard[i].append(const)
+            # else:
+            ba_soft[i].append(const)
     return ba_hard, ba_soft
 
 
@@ -204,11 +201,10 @@ def load_game_constraints(game_constraints: OrderedDict) -> tuple[list, list]:
                 "penalty": int(num["@penalty"]),
                 "type": num["@type"],
             }
-            if num["@type"] == "HARD":
-                const["penalty"] *= 10
-                ga_hard[i].append(const)
-            else:
-                ga_soft[i].append(const)
+            # if num["@type"] == "HARD":
+            #     ga_hard[i].append(const)
+            # else:
+            ga_soft[i].append(const)
     return ga_hard, ga_soft
 
 
@@ -251,11 +247,10 @@ def load_capacity_constraints(capacity_constraints: OrderedDict) -> tuple[list, 
                 const["slots"] = [int(x) for x in num["@slots"].split(";")]
             if "@intp" in num.keys():
                 const["intp"] = int(num["@intp"])
-            if num["@type"] == "HARD":
-                const["penalty"] *= 10
-                ca_hard[i].append(const)
-            else:
-                ca_soft[i].append(const)
+            # if num["@type"] == "HARD":
+            #     ca_hard[i].append(const)
+            # else:
+            ca_soft[i].append(const)
     return ca_hard, ca_soft
 
 
