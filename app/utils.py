@@ -4,7 +4,7 @@ import numpy as np
 
 def cost_function(Solution, problem):
     representative = Solution.representative
-    ca, ga, ba, fa, sa = problem["obj_constr"].values()
+    ca, ba, ga, fa, sa = problem["obj_constr"].all.values()
     obj = 0
     for i, cc in enumerate(ca):
         if len(cc) == 0:
@@ -217,9 +217,14 @@ def cost_function(Solution, problem):
     return Solution.obj_fun
 
 
-def feasibility_check(Solution, problem):
+def feasibility_check(Solution, problem, const_level="all", index=None):
     representative = Solution.representative
-    ca, ga, ba, fa, sa = problem["feas_constr"].values()
+    if const_level != "all":
+        ca, ba, ga, fa, sa = getattr(problem["feas_constr"], const_level)[
+            index
+        ].values()
+    else:
+        ca, ba, ga, fa, sa = getattr(problem["feas_constr"], const_level).values()
     status, feasibility = compatibility_check(representative)
     if not feasibility:
         return (status, feasibility)
@@ -589,7 +594,8 @@ def compatibility_check(Solution: np.array) -> bool:
     return "Compatible", True
 
 
-def random_init_sol(sol, problem, rng):
+def random_init_sol(problem, rng):
+    sol = np.ones((problem["n_teams"], problem["n_teams"]), dtype=int) * (-1)
     num_teams = problem["n_teams"]
     teams_list = list(rng.permutation(np.arange(num_teams)))
     if (len(teams_list) % 2) != 0:
