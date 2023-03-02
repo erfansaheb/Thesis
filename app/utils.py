@@ -214,7 +214,131 @@ def cost_function(Solution, problem):
                     Solution.slots_cost[[first, second]] += penalty
                     Solution.games_cost[team1, team2] += penalty
                     Solution.games_cost[team2, team1] += penalty
-    return Solution.obj_fun
+    penalty = sum(
+        problem["dummy_costs"][representative == (2 * (problem["n_teams"] - 1))]
+    )
+    update_costs(Solution, penalty, "DUMMY")
+    return Solution.total_cost
+
+
+def cost_function_games(Solution, problem, game):
+    representative = Solution.representative
+    ca, _, ga, _, sa = problem["obj_constr"].games[game].values()
+    soft_cost, hard_cost, total_cost, obj = 0, 0, 0, 0
+    for i, cc in enumerate(ca):
+        if len(cc) == 0:
+            continue
+        for c in cc:
+            if i == 0:  # CA1 constraints
+                p = np.zeros(len(c["teams"]), dtype=int)
+                for slot in c["slots"]:
+                    p += (
+                        np.sum(representative[c["teams"], :] == slot, axis=1)
+                        if c["mode"] == "H"
+                        else np.sum(representative[:, c["teams"]] == slot, axis=0)
+                    )
+                penalty = max([(p - c["max"]).sum(), 0]) * c["penalty"]
+                soft_cost, hard_cost, total_cost = update_costs_games(
+                    soft_cost, hard_cost, total_cost, penalty, c["type"]
+                )
+            elif i == 1:  # CA2 constraints
+                for team1 in c["teams1"]:
+                    if c["mode1"] == "HA":
+                        p = np.sum(
+                            np.isin(representative[team1, c["teams2"]], c["slots"])
+                        ) + np.sum(
+                            np.isin(representative[c["teams2"], team1], c["slots"])
+                        )
+                    elif c["mode1"] == "H":
+                        p = np.sum(
+                            np.isin(representative[team1, c["teams2"]], c["slots"])
+                        )
+                    else:
+                        p = np.sum(
+                            np.isin(representative[c["teams2"], team1], c["slots"])
+                        )
+                    if penalty := compute_penalty(c, p):
+                        soft_cost, hard_cost, total_cost = update_costs_games(
+                            soft_cost, hard_cost, total_cost, penalty, c["type"]
+                        )
+            elif i == 2:  # CA3 constraints
+                for team in c["teams1"]:
+                    slots_H = representative[team, c["teams2"]]
+                    slots_A = representative[c["teams2"], team]
+                    slots = np.concatenate([slots_A, slots_H])
+                    obj_bef = obj
+                    if c["mode1"] == "HA":
+                        obj = check_games_in_slots(problem, obj, c, slots)
+                    elif c["mode1"] == "H":
+                        obj = check_games_in_slots(problem, obj, c, slots_H)
+                    else:
+                        obj = check_games_in_slots(problem, obj, c, slots_A)
+                    if penalty := obj - obj_bef:
+                        soft_cost, hard_cost, total_cost = update_costs_games(
+                            soft_cost, hard_cost, total_cost, penalty, c["type"]
+                        )
+            else:  # CA4 constraints
+                slots_H = representative[np.ix_(c["teams1"], c["teams2"])].flatten()
+                slots_A = representative[np.ix_(c["teams2"], c["teams1"])].flatten()
+                slots = np.concatenate([slots_A, slots_H])
+                if c["mode2"] == "GLOBAL":
+                    if c["mode1"] == "HA":
+                        p = np.sum(np.isin(slots, c["slots"]))
+                    elif c["mode1"] == "H":
+                        p = np.sum(np.isin(slots_H, c["slots"]))
+                    else:
+                        p = np.sum(np.isin(slots_A, c["slots"]))
+
+                    if penalty := compute_penalty(c, p):
+                        soft_cost, hard_cost, total_cost = update_costs_games(
+                            soft_cost, hard_cost, total_cost, penalty, c["type"]
+                        )
+                else:
+                    for slot in c["slots"]:
+                        if c["mode1"] == "HA":
+                            p = np.sum(slots == slot)
+                            slots_check = slots
+                        elif c["mode1"] == "H":
+                            p = np.sum(slots_H == slot)
+                        else:
+                            p = np.sum(slots_A == slot)
+                        if penalty := compute_penalty(c, p) > 0:
+                            soft_cost, hard_cost, total_cost = update_costs_games(
+                                soft_cost, hard_cost, total_cost, penalty, c["type"]
+                            )
+    for i, gc in enumerate(ga):
+        if len(gc) == 0:
+            continue
+        for c in gc:  # GA1 constraints
+            p = sum(
+                np.sum(representative[meeting] == c["slots"])
+                for meeting in c["meetings"]
+            )
+            obj_bef = obj
+            obj += compute_penalty(c, p, "min")
+            obj += compute_penalty(c, p, "max")
+            if penalty := obj - obj_bef:
+                soft_cost, hard_cost, total_cost = update_costs_games(
+                    soft_cost, hard_cost, total_cost, penalty, c["type"]
+                )
+    for i, sc in enumerate(sa):
+        if len(sc) == 0:
+            continue
+        for c in sc:  # SE1 constraints
+            for team1, team2 in c["teams"]:
+                first = representative[team1, team2]
+                second = representative[team2, team1]
+                diff = abs(second - first) - 1
+                if penalty := compute_penalty(c, diff, "min"):
+                    soft_cost, hard_cost, total_cost = update_costs_games(
+                        soft_cost, hard_cost, total_cost, penalty, c["type"]
+                    )
+    dummy_cost = (
+        representative[game]
+        == (2 * (problem["n_teams"] - 1)) * problem["dummy_costs"][game]
+    )
+    total_cost += dummy_cost
+    return total_cost
 
 
 def feasibility_check(Solution, problem, const_level="all", index=None):
@@ -258,15 +382,8 @@ def feasibility_check(Solution, problem, const_level="all", index=None):
                             p += np.sum(representative[team2, team1] == c["slots"])
                         if p > c["max"]:
                             feasibility = False
-                            status = "Team {} has {} more {} games than max= {} during time slots {} against teams {}:\t {}".format(
-                                team1,
-                                p - c["max"],
-                                c["mode1"],
-                                c["max"],
-                                c["slots"],
-                                c["teams2"],
-                                p,
-                            )
+                            status = f"Team {team1} has {p - c['max']} more {c['mode1']} games than max={c['max']}\
+                            during time slots {c['slots']} against teams {c['teams2']}: {p}"
                             return status, feasibility
                 elif c["mode1"] == "H":
                     for team1 in c["teams1"]:
@@ -653,4 +770,19 @@ def update_costs(Solution, penalty, const_type, hard_const_degree=10):
     elif const_type == "HARD":
         Solution.hard_cost += penalty
         Solution.total_cost += penalty * hard_const_degree
+    elif const_type == "DUMMY":
+        Solution.dummy_cost += penalty
+        Solution.total_cost += penalty
     return
+
+
+def update_costs_games(
+    soft_cost, hard_cost, total_cost, penalty, const_type, hard_const_degree=10
+):
+    if const_type == "SOFT":
+        soft_cost += penalty
+        total_cost += penalty
+    elif const_type == "HARD":
+        hard_cost += penalty
+        total_cost += penalty * hard_const_degree
+    return soft_cost, hard_cost, total_cost
