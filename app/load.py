@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from itertools import combinations, product
+import numpy as np
 import xmltodict
 from app.named_tuples import Constraint
 
@@ -13,30 +14,27 @@ def load_problem(file: str) -> dict[str, dict[str, list]]:
     feas_constr, obj_constr = Constraint(n_teams=n_teams, n_slots=n_slots), Constraint(
         n_teams=n_teams, n_slots=n_slots
     )
-    load_capacity_constraints(
+    games_dummy_cost = np.ones((n_teams, n_teams)) * 100
+    for i in range(n_teams):
+        games_dummy_cost[i, i] = 0
+    games_dummy_cost = load_capacity_constraints(
         constraints.get("CapacityConstraints"),
         feas_constr,
         obj_constr,
+        games_dummy_cost,
     )
-    load_game_constraints(
-        constraints.get("GameConstraints"),
-        feas_constr,
-        obj_constr,
+    games_dummy_cost = load_game_constraints(
+        constraints.get("GameConstraints"), feas_constr, obj_constr, games_dummy_cost
     )
-    load_break_constraints(
-        constraints.get("BreakConstraints"),
-        feas_constr,
-        obj_constr,
-    )
+    load_break_constraints(constraints.get("BreakConstraints"), feas_constr, obj_constr)
     load_fairness_constraints(
-        constraints.get("FairnessConstraints"),
-        feas_constr,
-        obj_constr,
+        constraints.get("FairnessConstraints"), feas_constr, obj_constr
     )
-    load_separation_constraints(
+    games_dummy_cost = load_separation_constraints(
         constraints.get("SeparationConstraints"),
         feas_constr,
         obj_constr,
+        games_dummy_cost,
     )
     return {
         "feas_constr": feas_constr,
@@ -44,6 +42,7 @@ def load_problem(file: str) -> dict[str, dict[str, list]]:
         "n_teams": n_teams,
         "n_slots": n_slots,
         "gameMode": gameMode,
+        "dummy_costs": games_dummy_cost,
     }
 
 
@@ -51,7 +50,8 @@ def load_separation_constraints(
     separation_constraints: OrderedDict,
     feas_constr: Constraint,
     obj_constr: Constraint,
-) -> tuple[list, list]:
+    games_dummy_cost: np.array,
+) -> np.array:
     """This function extracts the separation constraints
 
     Args:
@@ -90,10 +90,13 @@ def load_separation_constraints(
                     obj_constr.all["sa"][i].append(const)
                     for team in const["teams"]:
                         obj_constr.teams[team]["sa"][i].append(const)
+                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
                     for game in combinations(const["teams"], 2):
                         obj_constr.games[game]["sa"][i].append(const)
                         obj_constr.games[(game[1], game[0])]["sa"][i].append(const)
-    return
+                        games_dummy_cost[game] += const["penalty"]
+                        games_dummy_cost[(game[1], game[0])] += const["penalty"]
+    return games_dummy_cost
 
 
 def load_fairness_constraints(
@@ -137,8 +140,11 @@ def load_fairness_constraints(
                     obj_constr.all["fa"][i].append(const)
                     for team in const["teams"]:
                         obj_constr.teams[team]["fa"][i].append(const)
+                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
                     for slot in const["slots"]:
                         obj_constr.slots[slot]["fa"][i].append(const)
+                        # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
+
     return
 
 
@@ -187,8 +193,10 @@ def load_break_constraints(
                     obj_constr.all["ba"][i].append(const)
                     for team in const["teams"]:
                         obj_constr.teams[team]["ba"][i].append(const)
+                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
                     for slot in const["slots"]:
                         obj_constr.slots[slot]["ba"][i].append(const)
+                        # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
     return
 
 
@@ -196,7 +204,8 @@ def load_game_constraints(
     game_constraints: OrderedDict,
     feas_constr: Constraint,
     obj_constr: Constraint,
-) -> tuple[list, list]:
+    games_dummy_cost: np.array,
+) -> np.array:
     """This function extracts the game constraints
 
     Args:
@@ -244,19 +253,23 @@ def load_game_constraints(
                     obj_constr.all["ga"][i].append(const)
                     for slot in const["slots"]:
                         obj_constr.slots[slot]["ga"][i].append(const)
+                        # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
                     for game in const["meetings"]:
                         obj_constr.games[game]["ga"][i].append(const)
+                        games_dummy_cost[game] += const["penalty"]
                         teams.update(game)
                     for team in teams:
                         obj_constr.teams[team]["ga"][i].append(const)
-    return
+                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
+    return games_dummy_cost
 
 
 def load_capacity_constraints(
     capacity_constraints: OrderedDict,
     feas_constr: Constraint,
     obj_constr: Constraint,
-) -> tuple[list, list]:
+    games_dummy_cost: np.array,
+) -> np.array:
     """This function extracts the capacity constraints
 
     Args:
@@ -315,24 +328,46 @@ def load_capacity_constraints(
                         for slot in const["slots"]:
                             feas_constr.slots[slot]["ca"][i].append(const)
                     if "teams2" in const:
-                        for game in product(const["teams1"], const["teams2"]):
-                            if game[0] != game[1]:
-                                feas_constr.games[game]["ca"][i].append(const)
+                        for team in const["teams1"]:
+                            if const["mode1"] == "HA":
+                                meetings = list(
+                                    product([team], const["teams2"])
+                                ) + list(product(const["teams2"], [team]))
+                            elif const["mode1"] == "H":
+                                meetings = list(product([team], const["teams2"]))
+                            else:
+                                meetings = list(product(const["teams2"], [team]))
+                            for game in meetings:
+                                if game[0] != game[1]:
+                                    feas_constr.games[game]["ca"][i].append(const)
                 else:
                     obj_constr.all["ca"][i].append(const)
                     for team in teams:
                         obj_constr.teams[team]["ca"][i].append(const)
+                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
                     if const.get("mode2"):
                         for slot in obj_constr.slots.keys():
                             obj_constr.slots[slot]["ca"][i].append(const)
+                            # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
                     else:
                         for slot in const["slots"]:
                             obj_constr.slots[slot]["ca"][i].append(const)
+                            # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
                     if "teams2" in const:
-                        for game in product(const["teams1"], const["teams2"]):
-                            if game[0] != game[1]:
-                                obj_constr.games[game]["ca"][i].append(const)
-    return
+                        for team in const["teams1"]:
+                            if const["mode1"] == "HA":
+                                meetings = list(
+                                    product([team], const["teams2"])
+                                ) + list(product(const["teams2"], [team]))
+                            elif const["mode1"] == "H":
+                                meetings = list(product([team], const["teams2"]))
+                            else:
+                                meetings = list(product(const["teams2"], [team]))
+                            for game in meetings:
+                                if game[0] != game[1]:
+                                    obj_constr.games[game]["ca"][i].append(const)
+                                    games_dummy_cost[game] += const["penalty"]
+    return games_dummy_cost
 
 
 def load_xml_file(file: str) -> OrderedDict:
@@ -362,7 +397,3 @@ def load_solution(file, sol):
     for game in Games:
         sol[int(game["@home"]), int(game["@away"])] = int(game["@slot"])
     return sol, objective_value
-
-
-# def get_team_consts(constraints, team):
-# for const in constraints:
