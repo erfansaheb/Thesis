@@ -17,6 +17,7 @@ class Solution:
     obj_fun: int = 0
     problem: dict
     dummy_cost: int = 0
+    week_availability: dict[str, list]
 
     def __init__(
         self,
@@ -38,6 +39,10 @@ class Solution:
         self.soft_cost = soft_cost
         self.dummy_cost = dummy_cost
         self.obj_fun = obj_fun or cost_function(self, problem)
+        self.week_availability = {
+            team: {week: 1 for week in range(problem["n_slots"])}
+            for team in range(problem["n_teams"])
+        }
 
     def copy(self):
         return deepcopy(self)
