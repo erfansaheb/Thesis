@@ -1,8 +1,10 @@
 from itertools import combinations, product
 import numpy as np
 
+from app.named_tuples import Solution
 
-def cost_function(Solution, problem):
+
+def cost_function(Solution: Solution, problem: dict) -> int:
     representative = Solution.representative
     ca, ba, ga, fa, sa = problem["obj_constr"].all.values()
     obj = 0
@@ -221,8 +223,9 @@ def cost_function(Solution, problem):
     return Solution.total_cost
 
 
-def cost_function_games(Solution, problem, game):
-    representative = Solution.representative
+def cost_function_games(
+    representative: np.array, problem: dict, game: tuple[int, int]
+) -> int:
     ca, _, ga, _, sa = problem["obj_constr"].games[game].values()
     soft_cost, hard_cost, total_cost, obj = 0, 0, 0, 0
     for i, cc in enumerate(ca):
