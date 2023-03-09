@@ -1,10 +1,8 @@
 from itertools import combinations, product
 import numpy as np
 
-from app.named_tuples import Solution
 
-
-def cost_function(Solution: Solution, problem: dict) -> int:
+def cost_function(Solution, problem: dict) -> int:
     representative = Solution.representative
     ca, ba, ga, fa, sa = problem["obj_constr"].all.values()
     obj = 0
@@ -789,3 +787,14 @@ def update_costs_games(
         hard_cost += penalty
         total_cost += penalty * hard_const_degree
     return soft_cost, hard_cost, total_cost
+
+
+def update_week_availability(
+    solution, week_num: int, team1: int, team2: int, method: str
+) -> None:
+    if method == "add":
+        solution.week_availability[team1][week_num] = 1
+        solution.week_availability[team2][week_num] = 1
+    elif method == "remove":
+        solution.week_availability[team1][week_num] = 0
+        solution.week_availability[team2][week_num] = 0
