@@ -90,7 +90,7 @@ def ALNS(
         if itr == warm_up and np.mean(delta) == 0:
             warm_up = _update_warm_up_number(warm_up)
         if itr < warm_up:
-            best_sol, scores, thetas, last_improvement, delta = do_iteration(
+            best_sol, incumbent, scores, thetas, last_improvement, delta = do_iteration(
                 operators,
                 prob,
                 rng,
@@ -134,7 +134,7 @@ def ALNS(
                     warm_up, r, operators_len_range, scores, thetas, weights, ws, itr
                 )
 
-            best_sol, scores, thetas, last_improvement, _ = do_iteration(
+            best_sol, incumbent, scores, thetas, last_improvement, _ = do_iteration(
                 operators,
                 prob,
                 rng,
@@ -198,7 +198,7 @@ def do_iteration(
         if phase == "warm_up":
             delta += [delta_E]
 
-    return best_sol, scores, thetas, last_improvement, delta
+    return best_sol, incumbent, scores, thetas, last_improvement, delta
 
 
 def calc_acc_prb(delta_E: int, T: float, phase: str = None) -> float:
@@ -321,13 +321,10 @@ def apply_operator(
     Returns:
         tuple[np.array, int, int]: new solution, new cost, new_cost - current cost
     """
-    new_sol = Solution(
-        problem=prob,
-        representative=operator(
-            solution.representative,
-            rng,
-            prob,
-        ),
+    new_sol = operator(
+        solution,
+        rng,
+        prob,
     )
     # new_cost = cost_function(new_sol, prob)
     delta_E = new_sol.total_cost - solution.total_cost

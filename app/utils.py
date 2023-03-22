@@ -342,8 +342,8 @@ def cost_function_games(
     return total_cost
 
 
-def feasibility_check(Solution, problem, const_level="all", index=None):
-    representative = Solution.representative
+def feasibility_check(representative, problem, const_level="all", index=None):
+    # representative = Solution.representative
     if const_level != "all":
         ca, ba, ga, fa, sa = getattr(problem["feas_constr"], const_level)[
             index
@@ -424,8 +424,8 @@ def feasibility_check(Solution, problem, const_level="all", index=None):
             for c in cc:
                 if c["mode1"] == "HA":
                     for team1 in c["teams1"]:
-                        slots_H = representative[team, c["teams2"]]
-                        slots_A = representative[c["teams2"], team]
+                        slots_H = representative[team1, c["teams2"]]
+                        slots_A = representative[c["teams2"], team1]
                         slots = np.concatenate([slots_A, slots_H])
                         for s in range(c["intp"], problem["n_slots"] + 1):
                             p = np.sum(
@@ -444,7 +444,7 @@ def feasibility_check(Solution, problem, const_level="all", index=None):
                                 return status, feasibility
                 elif c["mode1"] == "H":
                     for team1 in c["teams1"]:
-                        slots_H = representative[team, c["teams2"]]
+                        slots_H = representative[team1, c["teams2"]]
                         for s in range(c["intp"], problem["n_slots"] + 1):
                             p = np.sum(
                                 np.logical_and(
@@ -464,7 +464,7 @@ def feasibility_check(Solution, problem, const_level="all", index=None):
                                 return status, feasibility
                 else:
                     for team1 in c["teams1"]:
-                        slots_A = representative[c["teams2"], team]
+                        slots_A = representative[c["teams2"], team1]
                         for s in range(c["intp"], problem["n_slots"] + 1):
                             p = np.sum(
                                 np.logical_and(
@@ -619,10 +619,12 @@ def feasibility_check(Solution, problem, const_level="all", index=None):
                 for team in c["teams"]:
                     p = 0
                     for slot in c["slots"]:
-                        if slot == 0:
+                        home_games = representative[team, :]
+                        games = np.concatenate([home_games, representative[:, team]])
+                        if slot == 0 or slot not in games:
                             continue
-                        cur = (representative[team, :] == slot).any()
-                        prev = (representative[team, :] == slot - 1).any()
+                        cur = (home_games == slot).any()
+                        prev = (home_games == slot - 1).any()
                         if c["mode2"] == "HA":
                             p += cur == prev
                         elif c["mode2"] == "H":
@@ -640,7 +642,9 @@ def feasibility_check(Solution, problem, const_level="all", index=None):
                 p = 0
                 for team in c["teams"]:
                     for slot in c["slots"]:
-                        if slot == 0:
+                        home_games = representative[team, :]
+                        games = np.concatenate([home_games, representative[:, team]])
+                        if slot == 0 or slot not in games:
                             continue
                         cur = (representative[team, :] == slot).any()
                         prev = (representative[team, :] == slot - 1).any()
@@ -697,7 +701,7 @@ def compatibility_check(Solution: np.array) -> bool:
         weeks, counts = np.unique(
             np.concatenate([Solution[i, :], Solution[:, i]]), return_counts=True
         )
-        dummy_week = True if weeks[-1] == (len(Solution) - 1) * 2 else False
+        dummy_week = weeks[-1] == (len(Solution) - 1) * 2
         if dummy_week:
             if (counts[1:-1] > 1).any():
                 return (
@@ -749,6 +753,16 @@ def random_init_sol(problem, rng):
     return sol
 
 
+def dummy_init_sol(problem):
+    sol = (
+        np.ones((problem["n_teams"], problem["n_teams"]), dtype=int)
+        * problem["n_slots"]
+    )
+    for i in range(len(sol)):
+        sol[i, i] = -1
+    return sol
+
+
 def compute_penalty(c, p, extremum="max"):
     if extremum in ["max", "intp"]:
         return max([p - c[extremum], 0]) * c["penalty"]
@@ -793,8 +807,15 @@ def update_week_availability(
     solution, week_num: int, team1: int, team2: int, method: str
 ) -> None:
     if method == "add":
-        solution.week_availability[team1][week_num] = 1
-        solution.week_availability[team2][week_num] = 1
+        solution.week_availability[team1, week_num] = 1
+        solution.week_availability[team2, week_num] = 1
     elif method == "remove":
-        solution.week_availability[team1][week_num] = 0
-        solution.week_availability[team2][week_num] = 0
+        solution.week_availability[team1, week_num] = 0
+        solution.week_availability[team2, week_num] = 0
+
+
+def update_game_availability(solution, game, method):
+    if method == "add":
+        solution.game_availability[game] = 1
+    elif method == "remove":
+        solution.game_availability[game] = 0

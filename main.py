@@ -1,11 +1,14 @@
-from app.utils import (
-    cost_function,
-    random_init_sol,
-)
+from app.utils import cost_function, random_init_sol, dummy_init_sol
 from app.load import load_problem
 from time import time
 from app.ALNS import ALNS
-from app.Operators import one_week_swap, multi_week_swap, one_game_flip, multi_game_flip
+from app.Operators import (
+    one_week_swap,
+    multi_week_swap,
+    one_game_flip,
+    multi_game_flip,
+    set_week_for_game,
+)
 import numpy as np
 import pandas as pd
 
@@ -15,13 +18,16 @@ if __name__ == "__main__":
     problem = load_problem("Instances//ITC2021_Early_2.xml")
     solution = Solution(
         problem=problem,
-        representative=random_init_sol(
-            problem, rng=np.random.default_rng(3)
-        ),  # pd.read_csv("Erfan_init_sol.csv", header=None).to_numpy(),
+        representative=dummy_init_sol(problem)
+        # random_init_sol(
+        #   problem, rng=np.random.default_rng(3)
+        # ),  # pd.read_csv("Erfan_init_sol.csv", header=None).to_numpy(),
     )
     # initial_sol = pd.read_csv("Erfan_init_sol.csv", header=None).to_numpy()
     init_cost = solution.total_cost
-    operators = [one_week_swap, multi_week_swap, one_game_flip, multi_game_flip]
+    operators = [
+        set_week_for_game
+    ]  # [one_week_swap, multi_week_swap, one_game_flip, multi_game_flip]
     operators_len = len(operators)
     probabilities = [[1 / operators_len for _ in operators]]
     repeat = 1
@@ -36,7 +42,12 @@ if __name__ == "__main__":
         )
         for i in repeat_range:
             rng = np.random.default_rng(31 + i)
-            (best_sol[i], last_improvement[i], weights[i], feas_sols[i],) = ALNS(
+            (
+                best_sol[i],
+                last_improvement[i],
+                weights[i],
+                feas_sols[i],
+            ) = ALNS(
                 solution,
                 prb,
                 operators,
@@ -58,4 +69,4 @@ if __name__ == "__main__":
             "\t",
             running_time,
         )
-        print("Solution: ", best_sol[minidx])
+        print("Solution: ", best_sol[minidx].representative)
