@@ -17,7 +17,7 @@ class Solution:
     obj_fun: int = 0
     problem: dict
     dummy_cost: int = 0
-    week_availability: dict[str, list]
+    week_availability: np.array
     game_availability: np.array
 
     def __init__(
@@ -29,19 +29,26 @@ class Solution:
         soft_cost=0,
         obj_fun=None,
         dummy_cost=0,
+        week_availability=None,
     ):
         self.problem = problem
         self.representative = representative
         self.total_cost = total_cost
         self.teams_cost = np.zeros(problem["n_teams"])
         self.games_cost = np.zeros((problem["n_teams"], problem["n_teams"]))
-        self.slots_cost = np.zeros(problem["n_slots"]+1)
+        self.slots_cost = np.zeros(problem["n_slots"] + 1)
         self.hard_cost = hard_cost
         self.soft_cost = soft_cost
         self.dummy_cost = dummy_cost
         self.obj_fun = obj_fun or cost_function(self, problem)
-        self.week_availability = np.ones((problem["n_teams"], problem["n_slots"]),dtype=int)
-        self.game_availability = np.ones((problem["n_teams"], problem["n_teams"]),dtype=int)
+        self.week_availability = (
+            week_availability
+            if week_availability is not None
+            else np.ones((problem["n_teams"], problem["n_slots"]), dtype=int)
+        )
+        self.game_availability = np.ones(
+            (problem["n_teams"], problem["n_teams"]), dtype=int
+        )
 
     def copy(self):
         return deepcopy(self)
