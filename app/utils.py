@@ -1,8 +1,17 @@
 from itertools import combinations, product
 import numpy as np
 
+from named_tuples import Solution
+
 
 def cost_function(Solution, problem: dict) -> int:
+    """Compute the cost of the solution based on the constraints.
+    Args:
+        Solution (Solution): the solution
+        problem (dict): the problem instance
+    Returns:
+        int: the cost of the solution
+    """
     representative = Solution.representative
     ca, ba, ga, fa, sa = problem["obj_constr"].all.values()
     obj = 0
@@ -224,6 +233,14 @@ def cost_function(Solution, problem: dict) -> int:
 def cost_function_games(
     representative: np.array, problem: dict, game: tuple[int, int]
 ) -> int:
+    """Compute the cost of a game based on the constraints.
+    Args:
+        representative (np.array): the representative of the solution
+        problem (dict): the problem instance
+        game (tuple[int, int]): the game to compute the cost for
+    Returns:
+        int: the cost of the game
+    """
     ca, _, ga, _, sa = problem["obj_constr"].games[game].values()
     soft_cost, hard_cost, total_cost, obj = 0, 0, 0, 0
     for i, cc in enumerate(ca):
@@ -342,8 +359,18 @@ def cost_function_games(
     return total_cost
 
 
-def feasibility_check(representative, problem, const_level="all", index=None):
-    # representative = Solution.representative
+def feasibility_check(
+    representative: np.array, problem: dict, const_level: str = "all", index: int = None
+) -> tuple[str, bool]:
+    """Check the feasibility of the solution based on the constraints either at the team, slot, game, or all levels.
+    Args:
+        representative (np.array): the representative of the solution
+        problem (dict): the problem instance
+        const_level (str, optional): the level of constraints to check. Defaults to "all".
+        index (int, optional): the index of the constraint to check. Defaults to None.
+    Returns:
+        tuple[str, bool]: the status of the solution and its feasibility (True/False)
+    """
     if const_level != "all":
         ca, ba, ga, fa, sa = getattr(problem["feas_constr"], const_level)[
             index
@@ -696,7 +723,14 @@ def feasibility_check(representative, problem, const_level="all", index=None):
     return status, feasibility
 
 
-def compatibility_check(Solution: np.array) -> bool:
+def compatibility_check(Solution: np.array) -> tuple[str, bool]:
+    """Check if the solution is compatible, i.e. if each team has exactly one game per time slot
+    Args:
+        Solution (np.array): The solution to be checked (solution representation)
+
+    Returns:
+        tuple[str, bool]: The status of the check and the feasibility of the solution
+    """
     for i in range(len(Solution)):
         weeks, counts = np.unique(
             np.concatenate([Solution[i, :], Solution[:, i]]), return_counts=True
@@ -716,44 +750,44 @@ def compatibility_check(Solution: np.array) -> bool:
     return "Compatible", True
 
 
-def random_init_sol(problem, rng):
+def random_init_sol(problem: dict, rng: np.random.Generator) -> np.array:
+    """Create a random initial solution using the circle method
+    Args:
+        problem (dict): The problem dictionary
+        rng (np.random.Generator): The random number generator
+
+    Returns:
+        np.array: The random initial solution
+    """
     sol = np.ones((problem["n_teams"], problem["n_teams"]), dtype=int) * (-1)
     num_teams = problem["n_teams"]
-    teams_list = list(rng.permutation(np.arange(num_teams)))
-    if (len(teams_list) % 2) != 0:
-        teams_list.append(0)
-    x = teams_list[0 : int(len(teams_list) / 2)]
-    y = teams_list[int(len(teams_list) / 2) : len(teams_list)]
-    matches = []
-    for i in range(len(teams_list) - 1):
-        rounds = {}
-        if i != 0:
-            x.insert(1, y.pop(0))
-            y.append(x.pop())
-        matches.append(rounds)
-        for j in range(len(x)):
-            sol[x[j], y[j]] = i
-            rounds[x[j]] = y[j]
-    teams_list = list(rng.permutation(np.arange(num_teams)))
-    if (len(teams_list) % 2) != 0:
-        teams_list.append(0)
-    x = teams_list[0 : int(len(teams_list) / 2)]
-    y = teams_list[int(len(teams_list) / 2) : len(teams_list)]
-    # matches = []
-    for i in range(len(teams_list) - 1):
-        if i != 0:
-            x.insert(1, y.pop(0))
-            y.append(x.pop())
-        # matches.append(rounds)
-        for j in range(len(x)):
-            if sol[x[j], y[j]] == -1:
-                sol[x[j], y[j]] = i + len(teams_list) - 1
-            else:
-                sol[y[j], x[j]] = i + len(teams_list) - 1
+    for round in range(2):
+        teams_list = list(rng.permutation(np.arange(num_teams)))
+        if (len(teams_list) % 2) != 0:
+            teams_list.append(0)
+        x = teams_list[0 : int(len(teams_list) / 2)]
+        y = teams_list[int(len(teams_list) / 2) : len(teams_list)]
+        for i in range(len(teams_list) - 1):
+            if i != 0:
+                x.insert(1, y.pop(0))
+                y.append(x.pop())
+            for j in range(len(x)):
+                if sol[x[j], y[j]] == -1:
+                    sol[x[j], y[j]] = i + len(teams_list) * round - 1
+                else:
+                    sol[y[j], x[j]] = i + len(teams_list) * round - 1
     return sol
 
 
-def dummy_init_sol(problem):
+def dummy_init_sol(problem: dict) -> np.array:
+    """Create a dummy initial solution with all games assigned to the dummy week which is the last week of the season + 1
+    and main diagonal set to -1
+    Args:
+        problem (dict): The problem dictionary
+
+    Returns:
+        np.array: The dummy initial solution
+    """
     sol = (
         np.ones((problem["n_teams"], problem["n_teams"]), dtype=int)
         * problem["n_slots"]
@@ -763,37 +797,95 @@ def dummy_init_sol(problem):
     return sol
 
 
-def compute_penalty(c, p, extremum="max"):
+def compute_penalty(c: dict, p: int, extremum: str = "max") -> int:
+    """Compute the penalty for a constraint
+
+    Args:
+        c (dict): The constraint dictionary
+        p (int): The number of violations
+        extremum (str, optional): The extremum to be used, either "max", "min" or "intp". Defaults to "max".
+
+    Returns:
+        int: The penalty
+    """
     if extremum in ["max", "intp"]:
         return max([p - c[extremum], 0]) * c["penalty"]
     elif extremum == "min":
         return max([c[extremum] - p, 0]) * c["penalty"]
 
 
-def check_games_in_slots(problem, obj, c, slots):
+def check_games_in_slots(problem: dict, obj: int, c: dict, slots: np.array) -> int:
+    """Check if the number of games in the slots is in the interval [s - c["intp"], s)
+    If not, the penalty is computed and added to the objective function
+
+    Args:
+        problem (dict): The problem dictionary
+        obj (int): The objective value before the check
+        c (dict): The constraint dictionary
+        slots (np.array): The slots to be checked
+
+    Returns:
+        int: The objective value after the check
+    """
     for s in range(c["intp"], problem["n_slots"] + 1):
         p = np.sum(np.logical_and((slots < s), (slots >= s - c["intp"])))
         obj += compute_penalty(c, p)
     return obj
 
 
-def update_costs(Solution, penalty, const_type, hard_const_degree=10):
+def update_costs(
+    solution: Solution, penalty: int, const_type: str, hard_const_degree: int = 10
+) -> None:
+    """Update the costs of the solution with the penalty
+    If the constraint is soft, the soft cost, the total cost and objective function are updated
+    If the constraint is hard, the hard cost, the total cost and objective function are updated
+    If the constraint is dummy, the dummy cost and the total cost are updated
+
+    Args:
+        solution (Solution): The solution object
+        penalty (int): The penalty to be added
+        const_type (str): The type of the constraint, either "SOFT", "HARD" or "DUMMY"
+        hard_const_degree (int, optional): The degree of the hard constraint. Defaults to 10.
+
+    Returns:
+        None
+    """
     if const_type == "SOFT":
-        Solution.obj_fun += penalty
-        Solution.soft_cost += penalty
-        Solution.total_cost += penalty
+        solution.obj_fun += penalty
+        solution.soft_cost += penalty
+        solution.total_cost += penalty
     elif const_type == "HARD":
-        Solution.hard_cost += penalty
-        Solution.total_cost += penalty * hard_const_degree
+        solution.hard_cost += penalty
+        solution.total_cost += penalty * hard_const_degree
     elif const_type == "DUMMY":
-        Solution.dummy_cost += penalty
-        Solution.total_cost += penalty
+        solution.dummy_cost += penalty
+        solution.total_cost += penalty
     return
 
 
 def update_costs_games(
-    soft_cost, hard_cost, total_cost, penalty, const_type, hard_const_degree=10
-):
+    soft_cost: int,
+    hard_cost: int,
+    total_cost: int,
+    penalty: int,
+    const_type: str,
+    hard_const_degree: int = 10,
+) -> tuple[int, int, int]:
+    """Update the costs of the game with the penalty
+    If the constraint is soft, the soft cost and the total cost are updated
+    If the constraint is hard, the hard cost and the total cost are updated
+
+    Args:
+        soft_cost (int): The soft cost of the game
+        hard_cost (int): The hard cost of the game
+        total_cost (int): The total cost of the game
+        penalty (int): The penalty to be added
+        const_type (str): The type of the constraint, either "SOFT" or "HARD"
+        hard_const_degree (int, optional): The degree of the hard constraint. Defaults to 10.
+
+    Returns:
+        tuple[int, int, int]: The updated soft cost, hard cost and total cost
+    """
     if const_type == "SOFT":
         soft_cost += penalty
         total_cost += penalty
@@ -804,8 +896,24 @@ def update_costs_games(
 
 
 def update_week_availability(
-    solution, week_num: int, team1: int, team2: int, method: str
+    solution: Solution, week_num: int, team1: int, team2: int, method: str
 ) -> None:
+    """Update the week availability matrix of the solution
+    If the game between team1 and team2 has been assigned to week_num,
+    the availability of each team is set to 0 -> not available in that week
+    If the game between team1 and team2 has been removed from week_num,
+    the availability of each team is set to 1 -> available
+
+    Args:
+        solution (Solution): The solution object
+        week_num (int): The week to be updated
+        team1 (int): The first team to be updated
+        team2 (int): The second team to be updated
+        method (str): The method to be used, either "add" or "remove"
+
+    Returns:
+        None
+    """
     if method == "add":
         solution.week_availability[team1, week_num] = 1
         solution.week_availability[team2, week_num] = 1
@@ -814,7 +922,21 @@ def update_week_availability(
         solution.week_availability[team2, week_num] = 0
 
 
-def update_game_availability(solution, game, method):
+def update_game_availability(
+    solution: Solution, game: tuple[int, int], method: str
+) -> None:
+    """Update the game availability matrix of the solution
+    If the game has been added, the availability is set to 1
+    If the game has been removed, the availability is set to 0
+
+    Args:
+        solution (Solution): The solution object
+        game (tuple[int, int]): The game to be updated
+        method (str): The method to be used, either "add" or "remove"
+
+    Returns:
+        None
+    """
     if method == "add":
         solution.game_availability[game] = 1
     elif method == "remove":
