@@ -16,7 +16,6 @@ class Solution:
     soft_cost: int = 0
     obj_fun: int = 0
     problem: dict
-    dummy_cost: int = 0
     week_availability: np.array
     game_availability: np.array
 
@@ -28,7 +27,6 @@ class Solution:
         hard_cost=0,
         soft_cost=0,
         obj_fun=None,
-        dummy_cost=0,
         week_availability=None,
     ):
         self.problem = problem
@@ -39,7 +37,6 @@ class Solution:
         self.slots_cost = np.zeros(problem["n_slots"] + 1)
         self.hard_cost = hard_cost
         self.soft_cost = soft_cost
-        self.dummy_cost = dummy_cost
         self.obj_fun = obj_fun or cost_function(self, problem)
         self.week_availability = (
             week_availability
@@ -72,8 +69,7 @@ class Constraint:
             }
             for i in range(n_teams)
         }
-        # for i in self.teams:
-        #     self.teams[i]["dummy_cost"] = 100
+
         self.slots = {
             i: {
                 type: [[] for _ in range(n_types)]
@@ -81,8 +77,7 @@ class Constraint:
             }
             for i in range(n_slots)
         }
-        # for i in self.slots:
-        #     self.slots[i]["dummy_cost"] = 100
+
         self.games = {
             (i, j): {
                 type: [[] for _ in range(n_types)]
@@ -91,8 +86,6 @@ class Constraint:
             for i, j in product(range(n_teams), range(n_teams))
             if i != j
         }
-        # for i in self.games:
-        #     self.games[i]["dummy_cost"] = 100
 
 
 # Solution = namedtuple(

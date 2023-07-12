@@ -10,31 +10,25 @@ def load_problem(file: str) -> dict[str, dict[str, list]]:
     n_teams = len(data_dict["Instance"]["Resources"]["Teams"]["team"])
     n_slots = (n_teams - 1) * 2
     gameMode = data_dict["Instance"]["Structure"]["Format"]["gameMode"]
+    instance_name = data_dict["Instance"]["MetaData"]["InstanceName"]
     constraints = data_dict["Instance"]["Constraints"]
     feas_constr, obj_constr = Constraint(n_teams=n_teams, n_slots=n_slots), Constraint(
         n_teams=n_teams, n_slots=n_slots
     )
-    games_dummy_cost = np.ones((n_teams, n_teams)) * 100
-    for i in range(n_teams):
-        games_dummy_cost[i, i] = 0
-    games_dummy_cost = load_capacity_constraints(
+    load_capacity_constraints(
         constraints.get("CapacityConstraints"),
         feas_constr,
         obj_constr,
-        games_dummy_cost,
     )
-    games_dummy_cost = load_game_constraints(
-        constraints.get("GameConstraints"), feas_constr, obj_constr, games_dummy_cost
-    )
+    load_game_constraints(constraints.get("GameConstraints"), feas_constr, obj_constr)
     load_break_constraints(constraints.get("BreakConstraints"), feas_constr, obj_constr)
     load_fairness_constraints(
         constraints.get("FairnessConstraints"), feas_constr, obj_constr
     )
-    games_dummy_cost = load_separation_constraints(
+    load_separation_constraints(
         constraints.get("SeparationConstraints"),
         feas_constr,
         obj_constr,
-        games_dummy_cost,
     )
     return {
         "feas_constr": feas_constr,
@@ -42,7 +36,7 @@ def load_problem(file: str) -> dict[str, dict[str, list]]:
         "n_teams": n_teams,
         "n_slots": n_slots,
         "gameMode": gameMode,
-        "dummy_costs": games_dummy_cost,
+        "instance_name": instance_name,
     }
 
 
@@ -50,7 +44,6 @@ def load_separation_constraints(
     separation_constraints: OrderedDict,
     feas_constr: Constraint,
     obj_constr: Constraint,
-    games_dummy_cost: np.array,
 ) -> np.array:
     """This function extracts the separation constraints
 
@@ -88,15 +81,12 @@ def load_separation_constraints(
                         feas_constr.games[(game[1], game[0])]["sa"][i].append(const)
                 else:
                     obj_constr.all["sa"][i].append(const)
-                    for team in const["teams"]:
+                    for team in [int(x) for x in num["@teams"].split(";")]:
                         obj_constr.teams[team]["sa"][i].append(const)
-                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
-                    for game in combinations(const["teams"], 2):
+                    for game in const["teams"]:
                         obj_constr.games[game]["sa"][i].append(const)
                         obj_constr.games[(game[1], game[0])]["sa"][i].append(const)
-                        games_dummy_cost[game] += const["penalty"]
-                        games_dummy_cost[(game[1], game[0])] += const["penalty"]
-    return games_dummy_cost
+    return
 
 
 def load_fairness_constraints(
@@ -140,10 +130,9 @@ def load_fairness_constraints(
                     obj_constr.all["fa"][i].append(const)
                     for team in const["teams"]:
                         obj_constr.teams[team]["fa"][i].append(const)
-                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
+
                     for slot in const["slots"]:
                         obj_constr.slots[slot]["fa"][i].append(const)
-                        # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
 
     return
 
@@ -193,10 +182,8 @@ def load_break_constraints(
                     obj_constr.all["ba"][i].append(const)
                     for team in const["teams"]:
                         obj_constr.teams[team]["ba"][i].append(const)
-                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
                     for slot in const["slots"]:
                         obj_constr.slots[slot]["ba"][i].append(const)
-                        # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
     return
 
 
@@ -204,7 +191,6 @@ def load_game_constraints(
     game_constraints: OrderedDict,
     feas_constr: Constraint,
     obj_constr: Constraint,
-    games_dummy_cost: np.array,
 ) -> np.array:
     """This function extracts the game constraints
 
@@ -253,22 +239,18 @@ def load_game_constraints(
                     obj_constr.all["ga"][i].append(const)
                     for slot in const["slots"]:
                         obj_constr.slots[slot]["ga"][i].append(const)
-                        # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
                     for game in const["meetings"]:
                         obj_constr.games[game]["ga"][i].append(const)
-                        games_dummy_cost[game] += const["penalty"]
                         teams.update(game)
                     for team in teams:
                         obj_constr.teams[team]["ga"][i].append(const)
-                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
-    return games_dummy_cost
+    return
 
 
 def load_capacity_constraints(
     capacity_constraints: OrderedDict,
     feas_constr: Constraint,
     obj_constr: Constraint,
-    games_dummy_cost: np.array,
 ) -> np.array:
     """This function extracts the capacity constraints
 
@@ -344,15 +326,15 @@ def load_capacity_constraints(
                     obj_constr.all["ca"][i].append(const)
                     for team in teams:
                         obj_constr.teams[team]["ca"][i].append(const)
-                        # obj_constr.teams[team]["dummy_cost"] += const["penalty"]
+
                     if const.get("mode2"):
                         for slot in obj_constr.slots.keys():
                             obj_constr.slots[slot]["ca"][i].append(const)
-                            # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
+
                     else:
                         for slot in const["slots"]:
                             obj_constr.slots[slot]["ca"][i].append(const)
-                            # obj_constr.slots[slot]["dummy_cost"] += const["penalty"]
+
                     if "teams2" in const:
                         for team in const["teams1"]:
                             if const["mode1"] == "HA":
@@ -366,8 +348,7 @@ def load_capacity_constraints(
                             for game in meetings:
                                 if game[0] != game[1]:
                                     obj_constr.games[game]["ca"][i].append(const)
-                                    games_dummy_cost[game] += const["penalty"]
-    return games_dummy_cost
+    return
 
 
 def load_xml_file(file: str) -> OrderedDict:

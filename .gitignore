@@ -5,3 +5,5 @@
 *.pyc
 *.csv
 *.txt
+lp_files/
+Gurobi_examples/

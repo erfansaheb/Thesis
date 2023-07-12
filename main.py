@@ -11,11 +11,14 @@ from app.Operators import (
 )
 import numpy as np
 import pandas as pd
-
+from app.model import create_model
+from itertools import combinations, product
 from app.named_tuples import Solution
 
+
 if __name__ == "__main__":
-    problem = load_problem("Instances//ITC2021_Early_2.xml")
+    problem = load_problem("Instances//ITC2021_Early_1.xml")
+    model = create_model(problem)
     solution = Solution(
         problem=problem,
         representative=dummy_init_sol(problem)

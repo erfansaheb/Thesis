@@ -1,8 +1,6 @@
 from itertools import combinations, product
 import numpy as np
 
-from named_tuples import Solution
-
 
 def cost_function(Solution, problem: dict) -> int:
     """Compute the cost of the solution based on the constraints.
@@ -834,7 +832,7 @@ def check_games_in_slots(problem: dict, obj: int, c: dict, slots: np.array) -> i
 
 
 def update_costs(
-    solution: Solution, penalty: int, const_type: str, hard_const_degree: int = 10
+    solution, penalty: int, const_type: str, hard_const_degree: int = 10
 ) -> None:
     """Update the costs of the solution with the penalty
     If the constraint is soft, the soft cost, the total cost and objective function are updated
@@ -896,7 +894,7 @@ def update_costs_games(
 
 
 def update_week_availability(
-    solution: Solution, week_num: int, team1: int, team2: int, method: str
+    solution, week_num: int, team1: int, team2: int, method: str
 ) -> None:
     """Update the week availability matrix of the solution
     If the game between team1 and team2 has been assigned to week_num,
@@ -922,9 +920,7 @@ def update_week_availability(
         solution.week_availability[team2, week_num] = 0
 
 
-def update_game_availability(
-    solution: Solution, game: tuple[int, int], method: str
-) -> None:
+def update_game_availability(solution, game: tuple[int, int], method: str) -> None:
     """Update the game availability matrix of the solution
     If the game has been added, the availability is set to 1
     If the game has been removed, the availability is set to 0
