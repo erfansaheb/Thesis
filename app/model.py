@@ -43,7 +43,9 @@ def create_model(problem):
         )
         model.addConstrs(
             (
-                gp.quicksum(x[i, j, k] + x[j, i, k] for k in range(n_teams, n_slots))
+                gp.quicksum(
+                    x[i, j, k] + x[j, i, k] for k in range(n_teams - 1, n_slots)
+                )
                 == 1
                 for i, j in product(range(n_teams), range(n_teams))
                 if i != j
@@ -109,7 +111,8 @@ def _add_separation_constraints1(model, x, sc, n_slots, dse1: None):
         model.addConstrs(
             (
                 gp.quicksum(k * (x[i, j, k] - x[j, i, k]) for k in range(n_slots))
-                - (dse1[i, j, l] if dse1 is not None else 0)
+                - 1
+                + (dse1[i, j, l] if dse1 is not None else 0)
                 >= se1["min"]
                 for i, j in se1["teams"]
             ),
@@ -117,8 +120,9 @@ def _add_separation_constraints1(model, x, sc, n_slots, dse1: None):
         )
         model.addConstrs(
             (
-                gp.quicksum(k * (x[j, i, k] - x[i, j, k]) for k in range(n_slots))
-                + (dse1[i, j, l] if dse1 is not None else 0)
+                gp.quicksum(k * (x[i, j, k] - x[j, i, k]) for k in range(n_slots))
+                - (dse1[i, j, l] if dse1 is not None else 0)
+                + 1
                 <= -se1["min"]
                 for i, j in se1["teams"]
             ),
@@ -224,7 +228,7 @@ def _add_game_constraints1(model, x, gc, dga1: None):
             name=f"ga1_{'soft' if dga1 is not None else 'hard'}_max[{l}]",
         )
         model.addConstr(
-            rhs - (dga1[l, 1] if dga1 is not None else 0) >= ga1["min"],
+            rhs + (dga1[l, 1] if dga1 is not None else 0) >= ga1["min"],
             name=f"ga1_{'soft' if dga1 is not None else 'hard'}_min[{l}]",
         )
 
@@ -465,7 +469,7 @@ def _add_capacity_constraints3(model, x, cc, n_slots, dca3: None):
                         )
                         - (dca3[i, s - ca3["intp"], l] if dca3 is not None else 0)
                         <= ca3["max"],
-                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_home[{l}]",
+                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_home[{i},{s - ca3['intp']},{l}]",
                     )
         elif ca3["mode1"] == "A":
             for i in ca3["teams1"]:
@@ -478,7 +482,7 @@ def _add_capacity_constraints3(model, x, cc, n_slots, dca3: None):
                         )
                         - (dca3[i, s - ca3["intp"], l] if dca3 is not None else 0)
                         <= ca3["max"],
-                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_away[{l}]",
+                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_away[{i},{s - ca3['intp']},{l}]",
                     )
         else:
             for i in ca3["teams1"]:
@@ -491,7 +495,7 @@ def _add_capacity_constraints3(model, x, cc, n_slots, dca3: None):
                         )
                         - (dca3[i, s - ca3["intp"], l] if dca3 is not None else 0)
                         <= ca3["max"],
-                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_both[{l}]",
+                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_both[{i},{s - ca3['intp']},{l}]",
                     )
 
 
@@ -519,7 +523,7 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                         )
                         - (dca4[k, l] if dca4 is not None else 0)
                         <= ca4["max"],
-                        name=f"ca4_{'soft' if dca4 is not None else 'hard'}_home_e[{l}]",
+                        name=f"ca4_{'soft' if dca4 is not None else 'hard'}_home_e[{k},{l}]",
                     )
         elif ca4["mode1"] == "A":
             if ca4["mode2"] == "GLOBAL":
@@ -543,7 +547,7 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                         )
                         - (dca4[k, l] if dca4 is not None else 0)
                         <= ca4["max"],
-                        name=f"ca4_{'soft' if dca4 is not None else 'hard'}_away_e[{l}]",
+                        name=f"ca4_{'soft' if dca4 is not None else 'hard'}_away_e[{k},{l}]",
                     )
         elif ca4["mode2"] == "GLOBAL":
             model.addConstr(
@@ -564,7 +568,7 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                     )
                     - (dca4[k, l] if dca4 is not None else 0)
                     <= ca4["max"],
-                    name=f"ca4_{'soft' if dca4 is not None else 'hard'}_both_e[{l}]",
+                    name=f"ca4_{'soft' if dca4 is not None else 'hard'}_both_e[{k},{l}]",
                 )
 
 
