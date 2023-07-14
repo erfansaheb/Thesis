@@ -1,4 +1,4 @@
-*.xml
+# *.xml
 *.R
 *.flake8
 *.json
@@ -7,3 +7,4 @@
 *.txt
 lp_files/
 Gurobi_examples/
+Final_Solutions/
