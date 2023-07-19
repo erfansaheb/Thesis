@@ -373,7 +373,7 @@ def load_solution(file, sol):
         f.close()
     Games = data_dict["Solution"]["Games"]["ScheduledMatch"]
     objective_value = int(
-        data_dict["Solution"]["MetaData"]["ObjectiveValue"]["@objective"]
+        data_dict["Solution"]["MetaData"]["ObjectiveValue"]["@objective"][:-2]
     )
     for game in Games:
         sol[int(game["@home"]), int(game["@away"])] = int(game["@slot"])
