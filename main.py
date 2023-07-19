@@ -1,20 +1,27 @@
+from contextlib import redirect_stdout
+
 from app.utils import cost_function, random_init_sol, dummy_init_sol
-from app.load import load_problem
-from time import time
-from app.ALNS import ALNS
-from app.Operators import (
-    one_week_swap,
-    multi_week_swap,
-    one_game_flip,
-    multi_game_flip,
-    set_week_for_game,
-)
-import numpy as np
-import pandas as pd
+from app.load import load_problem, load_solution
+from app.utils import write_sol_xml
+
+# from time import time
+# from app.ALNS import ALNS
+# from app.Operators import (
+#     one_week_swap,
+#     multi_week_swap,
+#     one_game_flip,
+#     multi_game_flip,
+#     set_week_for_game,
+# )
+
+# import numpy as np
+# import pandas as pd
 from app.model import create_model
-from itertools import combinations, product
+
+# from itertools import combinations, product
 from app.named_tuples import Solution
 import os
+import gurobipy as gp
 
 if __name__ == "__main__":
     # import required module
@@ -24,12 +31,26 @@ if __name__ == "__main__":
 
     # iterate over files in
     # that directory
-    for filename in os.listdir(directory):
-        f = os.path.join(directory, filename)
+    for xml_file in os.listdir(directory):
+        filename = xml_file[:-4]
+        f = os.path.join(directory, f"{filename}.xml")
         problem = load_problem(f)
-        model = create_model(problem)
+        model, variables = create_model(problem)
         os.makedirs("lp_models", exist_ok=True)
-        model.write(f"lp_models\\{filename[:-4]}.lp")
+        model.write(f"lp_models\\{filename}.lp")
+        if not os.path.exists("results"):
+            os.makedirs("results")
+        if not os.path.exists(f"results/{filename}"):
+            os.makedirs(f"results/{filename}")
+        with open(f"results/{filename}/logs.txt", "w") as log_file:
+            with redirect_stdout(log_file):
+                model = gp.read(f"./lp_models/{filename}.lp")
+                model.setParam("MIPFocus", 1)
+                model.setParam("TimeLimit", 180)
+                model.optimize()
+                model.write(f"results/{filename}/initial_sol.json")
+                if model.status == gp.GRB.OPTIMAL:
+                    write_sol_xml(model, f"results/{filename}/initial_sol.xml")
     # solution = Solution(
     #     problem=problem,
     #     representative=dummy_init_sol(problem)
