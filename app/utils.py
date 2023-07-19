@@ -1,5 +1,33 @@
 from itertools import combinations, product
 import numpy as np
+import xml.etree.ElementTree as ET
+
+
+def write_sol_xml(model, filename):
+    root = ET.Element("Solution")
+
+    # Create an element to store the objective value
+    metadata_element = ET.SubElement(root, "MetaData")
+    objective_element = ET.SubElement(metadata_element, "ObjectiveValue")
+    objective_element.set("objective", str(model.objVal))
+
+    # Create an element to store variable values
+    games_element = ET.SubElement(root, "Games")
+    for variable in model.getVars():
+        if variable.x > 0 and variable.varName[0] == "x":
+            variable_element = ET.SubElement(games_element, "ScheduledMatch")
+            home, away, slot = variable.varName.split("[")[1].split("]")[0].split(",")
+            variable_element.set("home", home)
+            variable_element.set("away", away)
+            variable_element.set("slot", slot)
+
+    # Create the XML tree
+    tree = ET.ElementTree(root)
+
+    # Write the XML tree to a file
+    tree.write(filename)
+
+    print("Optimization results saved to results.xml.")
 
 
 def cost_function(Solution, problem: dict) -> int:
@@ -221,10 +249,7 @@ def cost_function(Solution, problem: dict) -> int:
                     Solution.slots_cost[[first, second]] += penalty
                     Solution.games_cost[team1, team2] += penalty
                     Solution.games_cost[team2, team1] += penalty
-    penalty = sum(
-        problem["dummy_costs"][representative == (2 * (problem["n_teams"] - 1))]
-    )
-    update_costs(Solution, penalty, "DUMMY")
+
     return Solution.total_cost
 
 
@@ -349,11 +374,7 @@ def cost_function_games(
                     soft_cost, hard_cost, total_cost = update_costs_games(
                         soft_cost, hard_cost, total_cost, penalty, c["type"]
                     )
-    dummy_cost = (
-        representative[game]
-        == (2 * (problem["n_teams"] - 1)) * problem["dummy_costs"][game]
-    )
-    total_cost += dummy_cost
+
     return total_cost
 
 
