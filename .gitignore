@@ -6,5 +6,7 @@
 *.csv
 *.txt
 lp_files/
+lp_models/
 Gurobi_examples/
 Final_Solutions/
+results/
