@@ -6,12 +6,12 @@ from gurobipy import GRB
 from app.named_tuples import Constraint
 
 
-def create_model(problem):
+def create_model(problem) -> tuple[gp.Model, dict[str, gp.tupledict]]:
     model = gp.Model(problem["instance_name"])
     n_teams = problem["n_teams"]
     n_slots = problem["n_slots"]
     gameMode = problem["gameMode"]
-    x, h, a = add_variables(model, n_teams, n_slots)
+    x, y, h, a = add_variables(model, n_teams, n_slots)
     model.addConstrs(
         (x.sum(i, i, "*") == 0 for i in range(n_teams)), name="no_self_play"
     )
@@ -52,6 +52,25 @@ def create_model(problem):
             ),
             name="at_least_one_game_second_half",
         )
+    # if yij happens before yji
+    model.addConstrs(
+        (
+            gp.quicksum((x[j, i, k] - x[i, j, k]) * k for k in range(n_slots))
+            <= (n_slots - 1) * y[i, j]
+            for i, j in product(range(n_teams), range(n_teams))
+            if i != j
+        ),
+        name="yij_happens_before_yji",
+    )
+    model.addConstrs(
+        (
+            gp.quicksum((x[i, j, k] - x[j, i, k]) * k for k in range(n_slots))
+            <= (n_slots - 1) * (1 - y[i, j])
+            for i, j in product(range(n_teams), range(n_teams))
+            if i != j
+        ),
+        name="yij_happens_before_yji_2",
+    )
     # home break
     model.addConstrs(
         (
@@ -83,47 +102,68 @@ def create_model(problem):
         x,
     )
     dfa2 = add_fairness_constraints(fa_hard, fa_soft, model, x, n_teams)
-    dse1 = add_separation_constraints(sa_hard, sa_soft, model, x, n_teams, n_slots)
+    dse1 = add_separation_constraints(sa_hard, sa_soft, model, x, y, n_teams, n_slots)
     model.update()
-    return model
+    variables = {
+        "x": x,
+        "y": y,
+        "h": h,
+        "a": a,
+        "dca1": dca1,
+        "dca2": dca2,
+        "dca3": dca3,
+        "dca4": dca4,
+        "dbr1": dbr1,
+        "dbr2": dbr2,
+        "dga1": dga1,
+        "dfa2": dfa2,
+        "dse1": dse1,
+    }
+    return model, variables
 
 
-def add_separation_constraints(sa_hard, sa_soft, model, x, n_teams, n_slots):
+def add_separation_constraints(sa_hard, sa_soft, model, x, y, n_teams, n_slots):
     dse1 = gp.tuplelist()
     for sa_type, sc in enumerate(sa_soft):
         if len(sc) == 0:
             continue
         if sa_type == 0:  # SA1 constraints
             dse1 = model.addVars(
-                n_teams, n_teams, len(sc), name="dse1", vtype=GRB.INTEGER, lb=0.0
+                n_teams,
+                n_teams,
+                len(sc),
+                name="dse1",
+                vtype=GRB.INTEGER,
+                lb=0.0,
+                obj=10,
             )
-            _add_separation_constraints1(model, x, sc, n_slots, dse1)
+            _add_separation_constraints1(model, x, y, sc, n_slots, dse1)
     for sa_type, sc in enumerate(sa_hard):
         if len(sc) == 0:
             continue
         if sa_type == 0:  # SA1 constraints
-            _add_separation_constraints1(model, x, sc, n_slots, None)
+            _add_separation_constraints1(model, x, y, sc, n_slots, None)
     return dse1
 
 
-def _add_separation_constraints1(model, x, sc, n_slots, dse1: None):
+def _add_separation_constraints1(model, x, y, sc, n_slots, dse1: None):
     for l, se1 in enumerate(sc):
         model.addConstrs(
             (
                 gp.quicksum(k * (x[i, j, k] - x[j, i, k]) for k in range(n_slots))
                 - 1
                 + (dse1[i, j, l] if dse1 is not None else 0)
-                >= se1["min"]
+                >= se1["min"] - 2 * (n_slots - 1) * y[i, j]
                 for i, j in se1["teams"]
             ),
             name=f"se1_{'soft' if dse1 is not None else 'hard'}_1",
         )
         model.addConstrs(
             (
-                gp.quicksum(k * (x[i, j, k] - x[j, i, k]) for k in range(n_slots))
-                - (dse1[i, j, l] if dse1 is not None else 0)
-                + 1
-                <= -se1["min"]
+                gp.quicksum(k * (x[j, i, k] - x[i, j, k]) for k in range(n_slots))
+                - 1
+                + (dse1[i, j, l] if dse1 is not None else 0)
+                >= se1["min"] - 2 * (n_slots - 1) * (1 - y[i, j])
                 for i, j in se1["teams"]
             ),
             name=f"se1_{'soft' if dse1 is not None else 'hard'}_2",
@@ -151,7 +191,13 @@ def add_fairness_constraints(
             continue
         if fa_type == 0:  # FA2 constraints
             dfa2 = model.addVars(
-                n_teams, n_teams, len(fc), name="dfa2", vtype=GRB.INTEGER, lb=0.0
+                n_teams,
+                n_teams,
+                len(fc),
+                name="dfa2",
+                vtype=GRB.INTEGER,
+                lb=0.0,
+                obj=10,
             )
             _add_fairness_constraints2(model, x, fc, dfa2)
     for fa_type, fc in enumerate(fa_hard):
@@ -220,17 +266,20 @@ def add_game_constraints(
 
 def _add_game_constraints1(model, x, gc, dga1: None):
     for l, ga1 in enumerate(gc):
-        rhs = gp.quicksum(
+        lhs = gp.quicksum(
             x.sum(i, j, k) for i, j in ga1["meetings"] for k in ga1["slots"]
         )
         model.addConstr(
-            rhs - (dga1[l, 0] if dga1 is not None else 0) <= ga1["max"],
+            lhs - (dga1[l, 0] if dga1 is not None else 0) <= ga1["max"],
             name=f"ga1_{'soft' if dga1 is not None else 'hard'}_max[{l}]",
         )
         model.addConstr(
-            rhs + (dga1[l, 1] if dga1 is not None else 0) >= ga1["min"],
+            lhs + (dga1[l, 1] if dga1 is not None else 0) >= ga1["min"],
             name=f"ga1_{'soft' if dga1 is not None else 'hard'}_min[{l}]",
         )
+        if dga1:
+            dga1[l, 0].Obj = ga1["penalty"]
+            dga1[l, 1].Obj = ga1["penalty"]
 
 
 def add_break_constraints(
@@ -249,18 +298,18 @@ def add_break_constraints(
     Returns:
         Tuple[list, list]: separated lists of soft and hard break constraints
     """
-    dbr1, dba2 = gp.tuplelist(), gp.tuplelist()
+    dbr1, dbr2 = gp.tuplelist(), gp.tuplelist()
     for br_type, bc in enumerate(br_soft):
         if len(bc) == 0:
             continue
         if br_type == 0:  # BA1 constraints
             dbr1 = model.addVars(
-                n_teams, len(bc), name="dba1", vtype=GRB.INTEGER, lb=0.0
+                n_teams, len(bc), name="dbr1", vtype=GRB.INTEGER, lb=0.0
             )
             _add_break_constraints1(model, h, a, bc, dbr1)
         else:  # BA2 constraints
-            dba2 = model.addVars(len(bc), name="dba2", vtype=GRB.INTEGER, lb=0.0)
-            _add_break_constraints2(model, h, a, bc, dba2)
+            dbr2 = model.addVars(len(bc), name="dbr2", vtype=GRB.INTEGER, lb=0.0)
+            _add_break_constraints2(model, h, a, bc, dbr2)
     for br_type, bc in enumerate(br_hard):
         if len(bc) == 0:
             continue
@@ -268,7 +317,7 @@ def add_break_constraints(
             _add_break_constraints1(model, h, a, bc, None)
         else:  # BA2 constraints
             _add_break_constraints2(model, h, a, bc, None)
-    return dbr1, dba2
+    return dbr1, dbr2
 
 
 def _add_break_constraints1(model, h, a, bc, dbr1: None):
@@ -283,6 +332,8 @@ def _add_break_constraints1(model, h, a, bc, dbr1: None):
                     ),
                     name=f"br1_{'soft' if dbr1 is not None else 'hard'}_home[{j}]",
                 )
+                if dbr1:
+                    dbr1[i, j].Obj = br1["penalty"]
         elif br1["mode2"] == "A":
             for i in br1["teams"]:
                 model.addConstr(
@@ -293,6 +344,8 @@ def _add_break_constraints1(model, h, a, bc, dbr1: None):
                     ),
                     name=f"br1_{'soft' if dbr1 is not None else 'hard'}_away[{j}]",
                 )
+                if dbr1:
+                    dbr1[i, j].Obj = br1["penalty"]
         else:
             for i in br1["teams"]:
                 model.addConstr(
@@ -303,6 +356,8 @@ def _add_break_constraints1(model, h, a, bc, dbr1: None):
                     ),
                     name=f"br1_{'soft' if dbr1 is not None else 'hard'}_both[{j}]",
                 )
+                if dbr1:
+                    dbr1[i, j].Obj = br1["penalty"]
 
 
 def _add_break_constraints2(model, h, a, bc, dbr2: None):
@@ -317,6 +372,8 @@ def _add_break_constraints2(model, h, a, bc, dbr2: None):
             ),
             name=f"br2_{'soft' if dbr2 is not None else 'hard'}_both[{j}]",
         )
+        if dbr2:
+            dbr2[j].Obj = br2["penalty"]
 
 
 def add_capacity_constraints(
@@ -390,6 +447,8 @@ def _add_capacity_constraints1(model, x, cc, dca1: None):
                     ),
                     name=f"ca1_{'soft' if dca1 is not None else 'hard'}_home[{j}]",
                 )
+                if dca1:
+                    dca1[i, j].Obj = ca1["penalty"]
         elif ca1["mode"] == "A":
             for i in ca1["teams"]:
                 model.addConstr(
@@ -400,18 +459,8 @@ def _add_capacity_constraints1(model, x, cc, dca1: None):
                     ),
                     name=f"ca1_{'soft' if dca1 is not None else 'hard'}_away[{j}]",
                 )
-        else:
-            for i in ca1["teams"]:
-                model.addConstr(
-                    (
-                        gp.quicksum(
-                            x.sum(i, "*", k) + x.sum("*", i, k) for k in ca1["slots"]
-                        )
-                        - (dca1[i, j] if dca1 is not None else 0)
-                        <= ca1["max"]
-                    ),
-                    name=f"ca1_{'soft' if dca1 is not None else 'hard'}_both[{j}]",
-                )
+                if dca1:
+                    dca1[i, j].Obj = ca1["penalty"]
 
 
 def _add_capacity_constraints2(model, x, cc, dca2: None):
@@ -428,6 +477,8 @@ def _add_capacity_constraints2(model, x, cc, dca2: None):
                     ),
                     name=f"ca2_{'soft' if dca2 is not None else 'hard'}_home[{l}]",
                 )
+                if dca2:
+                    dca2[i, l].Obj = ca2["penalty"]
         elif ca2["mode1"] == "A":
             for i in ca2["teams1"]:
                 model.addConstr(
@@ -440,6 +491,8 @@ def _add_capacity_constraints2(model, x, cc, dca2: None):
                     ),
                     name=f"ca2_{'soft' if dca2 is not None else 'hard'}_away[{l}]",
                 )
+                if dca2:
+                    dca2[i, l].Obj = ca2["penalty"]
         else:
             for i in ca2["teams1"]:
                 model.addConstr(
@@ -454,49 +507,57 @@ def _add_capacity_constraints2(model, x, cc, dca2: None):
                     ),
                     name=f"ca2_{'soft' if dca2 is not None else 'hard'}_both[{l}]",
                 )
+                if dca2:
+                    dca2[i, l].Obj = ca2["penalty"]
 
 
 def _add_capacity_constraints3(model, x, cc, n_slots, dca3: None):
     for l, ca3 in enumerate(cc):
         if ca3["mode1"] == "H":
             for i in ca3["teams1"]:
-                for s in range(ca3["intp"], n_slots + 1):
+                for s in range(n_slots - ca3["intp"] + 1):
                     model.addConstr(
                         gp.quicksum(
                             x.sum(i, j, k)
-                            for k in range(s - ca3["intp"], s)
+                            for k in range(s, s + ca3["intp"])
                             for j in ca3["teams2"]
                         )
-                        - (dca3[i, s - ca3["intp"], l] if dca3 is not None else 0)
+                        - (dca3[i, s, l] if dca3 is not None else 0)
                         <= ca3["max"],
-                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_home[{i},{s - ca3['intp']},{l}]",
+                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_home[{i},{s},{l}]",
                     )
+                    if dca3:
+                        dca3[i, s, l].Obj = ca3["penalty"]
         elif ca3["mode1"] == "A":
             for i in ca3["teams1"]:
-                for s in range(ca3["intp"], n_slots + 1):
+                for s in range(n_slots - ca3["intp"] + 1):
                     model.addConstr(
                         gp.quicksum(
                             x.sum(j, i, k)
-                            for k in range(s - ca3["intp"], s)
+                            for k in range(s, s + ca3["intp"])
                             for j in ca3["teams2"]
                         )
-                        - (dca3[i, s - ca3["intp"], l] if dca3 is not None else 0)
+                        - (dca3[i, s, l] if dca3 is not None else 0)
                         <= ca3["max"],
-                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_away[{i},{s - ca3['intp']},{l}]",
+                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_away[{i},{s},{l}]",
                     )
+                    if dca3:
+                        dca3[i, s, l].Obj = ca3["penalty"]
         else:
             for i in ca3["teams1"]:
-                for s in range(ca3["intp"], n_slots + 1):
+                for s in range(n_slots - ca3["intp"] + 1):
                     model.addConstr(
                         gp.quicksum(
                             x.sum(i, j, k) + x.sum(j, i, k)
-                            for k in range(s - ca3["intp"], s)
+                            for k in range(s, s + ca3["intp"])
                             for j in ca3["teams2"]
                         )
-                        - (dca3[i, s - ca3["intp"], l] if dca3 is not None else 0)
+                        - (dca3[i, s, l] if dca3 is not None else 0)
                         <= ca3["max"],
-                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_both[{i},{s - ca3['intp']},{l}]",
+                        name=f"ca3_{'soft' if dca3 is not None else 'hard'}_both[{i},{s},{l}]",
                     )
+                    if dca3:
+                        dca3[i, s, l].Obj = ca3["penalty"]
 
 
 def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
@@ -514,6 +575,8 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                     <= ca4["max"],
                     name=f"ca4_{'soft' if dca4 is not None else 'hard'}_home_g[{l}]",
                 )
+                if dca4:
+                    dca4[0, l].Obj = ca4["penalty"]
             else:
                 for k in ca4["slots"]:
                     model.addConstr(
@@ -525,6 +588,8 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                         <= ca4["max"],
                         name=f"ca4_{'soft' if dca4 is not None else 'hard'}_home_e[{k},{l}]",
                     )
+                    if dca4:
+                        dca4[k, l].Obj = ca4["penalty"]
         elif ca4["mode1"] == "A":
             if ca4["mode2"] == "GLOBAL":
                 model.addConstr(
@@ -538,6 +603,8 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                     <= ca4["max"],
                     name=f"ca4_{'soft' if dca4 is not None else 'hard'}_away_g[{l}]",
                 )
+                if dca4:
+                    dca4[0, l].Obj = ca4["penalty"]
             else:
                 for k in ca4["slots"]:
                     model.addConstr(
@@ -549,6 +616,8 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                         <= ca4["max"],
                         name=f"ca4_{'soft' if dca4 is not None else 'hard'}_away_e[{k},{l}]",
                     )
+                    if dca4:
+                        dca4[k, l].Obj = ca4["penalty"]
         elif ca4["mode2"] == "GLOBAL":
             model.addConstr(
                 gp.quicksum(
@@ -559,6 +628,8 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                 <= ca4["max"],
                 name=f"ca4_{'soft' if dca4 is not None else 'hard'}_both_g[{l}]",
             )
+            if dca4:
+                dca4[0, l].Obj = ca4["penalty"]
         else:
             for k in ca4["slots"]:
                 model.addConstr(
@@ -570,6 +641,8 @@ def _add_capacity_constraints4(model, x, cc, n_slots, dca4: None):
                     <= ca4["max"],
                     name=f"ca4_{'soft' if dca4 is not None else 'hard'}_both_e[{k},{l}]",
                 )
+                if dca4:
+                    dca4[k, l].Obj = ca4["penalty"]
 
 
 def add_variables(
@@ -591,6 +664,12 @@ def add_variables(
         vtype=GRB.BINARY,
         name="x",
     )
+    y = model.addVars(
+        n_teams,
+        n_teams,
+        vtype=GRB.BINARY,
+        name="y",
+    )
     h = model.addVars(
         n_teams,
         n_slots,
@@ -603,4 +682,4 @@ def add_variables(
         vtype=GRB.BINARY,
         name="a",
     )
-    return x, h, a
+    return x, y, h, a
