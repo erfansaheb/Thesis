@@ -378,3 +378,37 @@ def load_solution(file, sol):
     for game in Games:
         sol[int(game["@home"]), int(game["@away"])] = int(game["@slot"])
     return sol, objective_value
+
+
+def load_sol_from_ampl_output(filename: str) -> dict[str, int] | dict:
+    with open(filename, "r") as file:
+        display_output = file.read()
+
+    # Function to parse the table and create a 2D numpy array
+    def parse_table(table_str):
+        lines = table_str.strip().split("\n")
+        team2s = list(map(int, lines[0].split()[1:-1]))
+        slots = [list(map(int, line.split()))[0] for line in lines[1:] if line != ";"]
+        # Extract the first column (indices)
+        values = [list(map(int, line.split()))[1:] for line in lines[1:] if line != ";"]
+        return team2s, slots, np.array(values)
+
+    # Split the output into individual tables for each variable
+    variable_tables = display_output.strip().split("\n\n")
+
+    # Create a dictionary to store the 3D arrays
+    variables = {}
+    i = 0
+    # Parse each table and create 2D numpy arrays
+    for table in variable_tables:
+        if table[0] == "_":
+            continue
+        elif table[0] in ["d", "h", "y"]:
+            break
+        lines = table.strip().split("\n")
+        team2s, slots, var_array = parse_table("\n".join(lines[1:]))
+        for slot_index, slot in enumerate(slots):
+            for team2_index, team2 in enumerate(team2s):
+                variables[f"x[{i},{team2},{slot}]"] = var_array[slot_index, team2_index]
+        i += 1
+    return variables
