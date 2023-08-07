@@ -1,6 +1,241 @@
 from itertools import combinations, product
 import numpy as np
 import xml.etree.ElementTree as ET
+import gurobipy as gp
+
+
+def fix_less_teams_and_optimize_random(
+    model: gp.Model,
+    variables: gp.tupledict,
+    n_teams: int,
+    filename: str,
+    num_div: int = 4,
+    time_limit: int = 600,
+    mip_focus: int = 3,
+):
+    """Fix and optimize the model.
+    Args:
+        model (gurobipy.Model): the model
+        variables (dict): the variables of the model
+        n_teams (int): the number of teams
+    Returns:
+        gurobipy.Model: the fixed and optimized model
+    """
+    all_teams = np.arange(n_teams)
+    np.random.shuffle(all_teams)
+    subset_teams = np.array_split(all_teams, num_div)
+
+    # Iterate over the variable sets
+    for index, teams in enumerate(subset_teams):
+        variables_to_fix = sum(
+            (variables["x"].select(i, "*", "*") for i in teams), []
+        ) + sum((variables["x"].select("*", i, "*") for i in teams), [])
+        # Fix the selected variables to their current values
+        for var in variables_to_fix:
+            var.lb = var.x
+            var.ub = var.x
+        print(f"Fixing teams {teams}.")
+        # Re-optimize the model with the selected variables fixed
+        model.setParam("TimeLimit", 600)
+        model.optimize()
+        print("-----------------------------------")
+
+        # Check if the optimization was successful
+        if model.status == gp.GRB.OPTIMAL:
+            print("Optimal solution found with selected teams fixed.")
+
+        else:
+            print(
+                "Optimization did not converge to an optimal solution with selected teams fixed."
+            )
+        write_sol_xml(
+            model,
+            f"results/MIP{mip_focus}_TIME{time_limit}/{filename}/heuristic_fix_teams_{index}_sol.xml",
+        )
+        # Relax the selected variables to their original bounds
+        for var in variables_to_fix:
+            home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
+            if home != away:
+                var.lb = 0
+                var.ub = 1
+
+
+def fix_less_weeks_and_optimize_random(
+    model: gp.Model,
+    variables: gp.tupledict,
+    n_slots: int,
+    filename: str,
+    num_div: str = 4,
+    time_limit: int = 600,
+    mip_focus: int = 3,
+):
+    """Fix and optimize the model.
+    Args:
+        model (gurobipy.Model): the model
+        variables (dict): the variables of the model
+        n_slots (int): the number of weeks
+    Returns:
+        gurobipy.Model: the fixed and optimized model
+    """
+    all_weeks = np.arange(n_slots)
+    np.random.shuffle(all_weeks)
+    subset_weeks = np.array_split(all_weeks, num_div)
+    model.setParam("MIPFocus", mip_focus)
+    model.setParam("TimeLimit", time_limit)
+    # Iterate over the variable sets
+    for index, weeks in enumerate(subset_weeks):
+        variables_to_fix = sum((variables["x"].select("*", "*", i) for i in weeks), [])
+        # Fix the selected variables to their current values
+        for var in variables_to_fix:
+            var.lb = var.x
+            var.ub = var.x
+        print(f"Fixing weeks {weeks}.")
+        # Re-optimize the model with the selected variables fixed
+        model.optimize()
+        print("-----------------------------------")
+        # Check if the optimization was successful
+        if model.status == gp.GRB.OPTIMAL:
+            print("Optimal solution found with selected weeks fixed.")
+
+        else:
+            print(
+                "Optimization did not converge to an optimal solution with selected weeks fixed."
+            )
+        write_sol_xml(
+            model,
+            f"results/MIP{mip_focus}_TIME{time_limit}/{filename}/heuristic_fix_weeks_{index}_sol.xml",
+        )
+        # Relax the selected variables to their original bounds
+        for var in variables_to_fix:
+            home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
+            if home != away:
+                var.lb = 0
+                var.ub = 1
+
+
+def fix_more_teams_and_optimize_random(
+    model: gp.Model,
+    variables: gp.tupledict,
+    n_teams: int,
+    filename: str,
+    num_div: int = 4,
+    time_limit: int = 300,
+    mip_focus: int = 3,
+):
+    """Fix and optimize the model.
+    Args:
+        model (gurobipy.Model): the model
+        variables (dict): the variables of the model
+        n_teams (int): the number of teams
+    Returns:
+        gurobipy.Model: the fixed and optimized model
+    """
+    all_teams = np.arange(n_teams)
+    np.random.shuffle(all_teams)
+    subset_teams = np.array_split(all_teams, num_div)
+
+    # Iterate over the variable sets
+    model.setParam("MIPFocus", mip_focus)
+    model.setParam("TimeLimit", time_limit)
+    for index, teams in enumerate(subset_teams):
+        fix_teams = np.setdiff1d(all_teams, teams)
+        variables_to_fix = sum(
+            (variables["x"].select(i, "*", "*") for i in fix_teams), []
+        ) + sum((variables["x"].select("*", i, "*") for i in fix_teams), [])
+        # Fix the selected variables to their current values
+        for var in variables_to_fix:
+            var.lb = var.x
+            var.ub = var.x
+        print(f"Fixing teams {fix_teams}.")
+        # Re-optimize the model with the selected variables fixed
+
+        model.optimize()
+        print("-----------------------------------")
+
+        # Check if the optimization was successful
+        if model.status == gp.GRB.OPTIMAL:
+            print("Optimal solution found with selected teams fixed.")
+
+        else:
+            print(
+                "Optimization did not converge to an optimal solution with selected teams fixed."
+            )
+        write_sol_xml(
+            model,
+            f"results/MIP{mip_focus}_TIME{time_limit}/{filename}/heuristic_fix_teams_{index}_sol.xml",
+        )
+        # Relax the selected variables to their original bounds
+        for var in variables_to_fix:
+            home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
+            if home != away:
+                var.lb = 0
+                var.ub = 1
+
+
+def fix_more_weeks_and_optimize_random(
+    model: gp.Model,
+    variables: gp.tupledict,
+    n_slots: int,
+    filename: str,
+    num_div: str = 4,
+    time_limit: int = 300,
+    mip_focus: int = 3,
+):
+    """Fix and optimize the model.
+    Args:
+        model (gurobipy.Model): the model
+        variables (dict): the variables of the model
+        n_slots (int): the number of weeks
+    Returns:
+        gurobipy.Model: the fixed and optimized model
+    """
+    all_weeks = np.arange(n_slots)
+    np.random.shuffle(all_weeks)
+    subset_weeks = np.array_split(all_weeks, num_div)
+    model.setParam("MIPFocus", mip_focus)
+    model.setParam("TimeLimit", time_limit)
+    # Iterate over the variable sets
+    for index, weeks in enumerate(subset_weeks):
+        fix_weeks = np.setdiff1d(all_weeks, weeks)
+        variables_to_fix = sum(
+            (variables["x"].select("*", "*", i) for i in fix_weeks), []
+        )
+        # Fix the selected variables to their current values
+        for var in variables_to_fix:
+            var.lb = var.x
+            var.ub = var.x
+        print(f"Fixing weeks {fix_weeks}.")
+        # Re-optimize the model with the selected variables fixed
+        model.optimize()
+        print("-----------------------------------")
+        # Check if the optimization was successful
+        if model.status == gp.GRB.OPTIMAL:
+            print("Optimal solution found with selected weeks fixed.")
+
+        else:
+            print(
+                "Optimization did not converge to an optimal solution with selected weeks fixed."
+            )
+        write_sol_xml(
+            model,
+            f"results/MIP{mip_focus}_TIME{time_limit}/{filename}/heuristic_fix_weeks_{index}_sol.xml",
+        )
+        # Relax the selected variables to their original bounds
+        for var in variables_to_fix:
+            home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
+            if home != away:
+                var.lb = 0
+                var.ub = 1
+
+
+def set_initial_solution(model: gp.Model, variables: dict):
+    for v in variables:
+        model.getVarByName(v).start = variables[v]
+
+
+def set_initial_solution_json(model: gp.Model, variables: dict):
+    for v in variables:
+        model.getVarByName(v["VarName"]).start = v["X"]
 
 
 def write_sol_xml(model, filename):
@@ -27,7 +262,7 @@ def write_sol_xml(model, filename):
     # Write the XML tree to a file
     tree.write(filename)
 
-    print("Optimization results saved to results.xml.")
+    print(f"Optimization results saved to {filename}.")
 
 
 def cost_function(Solution, problem: dict) -> int:

@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from itertools import combinations, product
+import json
 import numpy as np
 import xmltodict
 from app.named_tuples import Constraint
@@ -373,11 +374,15 @@ def load_solution(file, sol):
         f.close()
     Games = data_dict["Solution"]["Games"]["ScheduledMatch"]
     objective_value = int(
-        data_dict["Solution"]["MetaData"]["ObjectiveValue"]["@objective"][:-2]
+        data_dict["Solution"]["MetaData"]["ObjectiveValue"]["@objective"]
     )
+    variables = {}
     for game in Games:
-        sol[int(game["@home"]), int(game["@away"])] = int(game["@slot"])
-    return sol, objective_value
+        variables[
+            f'x[{int(game["@home"])},{int(game["@away"])},{int(game["@slot"])}]'
+        ] = 1
+        # sol[int(game["@home"]), int(game["@away"])] = int(game["@slot"])
+    return variables, objective_value
 
 
 def load_sol_from_ampl_output(filename: str) -> dict[str, int] | dict:
@@ -412,3 +417,9 @@ def load_sol_from_ampl_output(filename: str) -> dict[str, int] | dict:
                 variables[f"x[{i},{team2},{slot}]"] = var_array[slot_index, team2_index]
         i += 1
     return variables
+
+
+def load_init_sol_json(filename: str) -> dict[str, int] | dict:
+    with open(filename, "r") as file:
+        display_output = file.read()
+    return json.loads(display_output)["Vars"]
