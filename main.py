@@ -2,9 +2,6 @@ from contextlib import redirect_stdout
 import time
 
 from app.utils import (
-    cost_function,
-    random_init_sol,
-    dummy_init_sol,
     set_initial_solution,
     set_initial_solution_json,
 )
@@ -12,7 +9,6 @@ from app.load import (
     load_init_sol_json,
     load_problem,
     load_sol_from_ampl_output,
-    load_solution,
 )
 from app.utils import (
     write_sol_xml,
@@ -21,23 +17,10 @@ from app.utils import (
     fix_more_teams_and_optimize_random,
     fix_more_weeks_and_optimize_random,
 )
-
-# from time import time
-# from app.ALNS import ALNS
-# from app.Operators import (
-#     one_week_swap,
-#     multi_week_swap,
-#     one_game_flip,
-#     multi_game_flip,
-#     set_week_for_game,
-# )
-
-# import numpy as np
-# import pandas as pd
+import numpy as np
 from app.model import create_model
 
-# from itertools import combinations, product
-from app.named_tuples import Solution
+
 import os
 import gurobipy as gp
 
@@ -55,24 +38,18 @@ if __name__ == "__main__":
     # iterate over files in
     # that directory
     for key, setting in settings.items():
+        rng = 
         for xml_file in os.listdir(directory):
             filename = xml_file[:-4]
-            # if not os.path.exists("lp_models"):
             f = os.path.join(directory, f"{filename}.xml")
             problem = load_problem(f)
             model, variables = create_model(problem)
-            # os.makedirs("lp_models", exist_ok=True)
-            # model.write(f"lp_models\\{filename}.lp")
-            # else:
-            # model = gp.read(f"./lp_models/{filename}.lp")
             if not os.path.exists(
                 f"results/MIP{setting['mip_focus']}_TIME{setting['timelimit']}/{filename}"
             ):
                 os.makedirs(
                     f"results/MIP{setting['mip_focus']}_TIME{setting['timelimit']}/{filename}"
                 )
-            # if not os.path.exists(f"results/{filename}"):
-            #     os.makedirs(f"results/{filename}")
             if os.path.exists(
                 f"results/MIP{setting['mip_focus']}_TIME{setting['timelimit']}/{filename}/logs.txt"
             ):
@@ -157,7 +134,3 @@ if __name__ == "__main__":
                         )
                     print("-----------------------------------")
                     print(f"it took {time.time() - start} seconds")
-                # else:
-                #     print(
-                #         "Optimization did not converge to an initial optimal solution."
-                #     )
