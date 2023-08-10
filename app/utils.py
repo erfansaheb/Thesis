@@ -12,6 +12,7 @@ def fix_less_teams_and_optimize_random(
     num_div: int = 4,
     time_limit: int = 600,
     mip_focus: int = 3,
+    rng: np.random.Generator = np.random.default_rng(12345),
 ):
     """Fix and optimize the model.
     Args:
@@ -22,7 +23,7 @@ def fix_less_teams_and_optimize_random(
         gurobipy.Model: the fixed and optimized model
     """
     all_teams = np.arange(n_teams)
-    np.random.shuffle(all_teams)
+    rng.shuffle(all_teams)
     subset_teams = np.array_split(all_teams, num_div)
 
     # Iterate over the variable sets
@@ -68,6 +69,7 @@ def fix_less_weeks_and_optimize_random(
     num_div: str = 4,
     time_limit: int = 600,
     mip_focus: int = 3,
+    rng: np.random.Generator = np.random.default_rng(12345),
 ):
     """Fix and optimize the model.
     Args:
@@ -78,7 +80,7 @@ def fix_less_weeks_and_optimize_random(
         gurobipy.Model: the fixed and optimized model
     """
     all_weeks = np.arange(n_slots)
-    np.random.shuffle(all_weeks)
+    rng.shuffle(all_weeks)
     subset_weeks = np.array_split(all_weeks, num_div)
     model.setParam("MIPFocus", mip_focus)
     model.setParam("TimeLimit", time_limit)
@@ -121,6 +123,7 @@ def fix_more_teams_and_optimize_random(
     num_div: int = 4,
     time_limit: int = 300,
     mip_focus: int = 3,
+    rng: np.random.Generator = np.random.default_rng(12345),
 ):
     """Fix and optimize the model.
     Args:
@@ -131,7 +134,7 @@ def fix_more_teams_and_optimize_random(
         gurobipy.Model: the fixed and optimized model
     """
     all_teams = np.arange(n_teams)
-    np.random.shuffle(all_teams)
+    rng.shuffle(all_teams)
     subset_teams = np.array_split(all_teams, num_div)
 
     # Iterate over the variable sets
@@ -180,6 +183,7 @@ def fix_more_weeks_and_optimize_random(
     num_div: str = 4,
     time_limit: int = 300,
     mip_focus: int = 3,
+    rng: np.random.Generator = np.random.default_rng(12345),
 ):
     """Fix and optimize the model.
     Args:
@@ -190,7 +194,7 @@ def fix_more_weeks_and_optimize_random(
         gurobipy.Model: the fixed and optimized model
     """
     all_weeks = np.arange(n_slots)
-    np.random.shuffle(all_weeks)
+    rng.shuffle(all_weeks)
     subset_weeks = np.array_split(all_weeks, num_div)
     model.setParam("MIPFocus", mip_focus)
     model.setParam("TimeLimit", time_limit)

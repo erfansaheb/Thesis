@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # iterate over files in
     # that directory
     for key, setting in settings.items():
-        rng = 
+        rng = np.random.default_rng(12345)
         for xml_file in os.listdir(directory):
             filename = xml_file[:-4]
             f = os.path.join(directory, f"{filename}.xml")
