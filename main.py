@@ -127,12 +127,16 @@ if __name__ == "__main__":
                             variables,
                             problem["n_slots"],
                             filename,
+                            time_limit=setting["time_limit"],
+                            mip_focus=setting["mip_focus"],
                         )
                         fix_less_teams_and_optimize_random(
                             model,
                             variables,
                             problem["n_teams"],
                             filename,
+                            time_limit=setting["time_limit"],
+                            mip_focus=setting["mip_focus"],
                         )
                     elif key in [4, 3]:
                         fix_more_weeks_and_optimize_random(
@@ -140,12 +144,16 @@ if __name__ == "__main__":
                             variables,
                             problem["n_slots"],
                             filename,
+                            time_limit=setting["time_limit"],
+                            mip_focus=setting["mip_focus"],
                         )
                         fix_more_teams_and_optimize_random(
                             model,
                             variables,
                             problem["n_teams"],
                             filename,
+                            time_limit=setting["time_limit"],
+                            mip_focus=setting["mip_focus"],
                         )
                     print("-----------------------------------")
                     print(f"it took {time.time() - start} seconds")
