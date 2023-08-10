@@ -6,7 +6,7 @@ import xmltodict
 from app.named_tuples import Constraint
 
 
-def load_problem(file: str) -> dict[str, dict[str, list]]:
+def load_problem(file: str) -> dict[str, Constraint | int | str]:
     data_dict = load_xml_file(file)
     n_teams = len(data_dict["Instance"]["Resources"]["Teams"]["team"])
     n_slots = (n_teams - 1) * 2
