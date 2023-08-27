@@ -214,7 +214,7 @@ def _add_fairness_constraints2(model, x, fc, dfa2: None):
             model.addConstrs(
                 (
                     gp.quicksum(
-                        x.sum(i, "*", k) - x.sum(j, "*", k) for k in range(slot)
+                        x.sum(i, "*", k) - x.sum(j, "*", k) for k in range(slot+1)
                     )
                     - (dfa2[i, j, l] if dfa2 is not None else 0)
                     <= fc2["intp"]
@@ -225,7 +225,7 @@ def _add_fairness_constraints2(model, x, fc, dfa2: None):
             model.addConstrs(
                 (
                     gp.quicksum(
-                        x.sum(j, "*", k) - x.sum(i, "*", k) for k in range(slot)
+                        x.sum(j, "*", k) - x.sum(i, "*", k) for k in range(slot+1)
                     )
                     - (dfa2[i, j, l] if dfa2 is not None else 0)
                     <= fc2["intp"]
