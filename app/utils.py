@@ -253,7 +253,7 @@ def fix_more_teams_and_optimize_random(
     n_teams: int,
     folder: str,
     time_limit: float,
-    num_div: int = 4,
+    n_free_teams: int | None = None,
     rng: np.random.Generator = np.random.default_rng(12345),
     index: int = 1,
 ):
@@ -266,45 +266,43 @@ def fix_more_teams_and_optimize_random(
         gurobipy.Model: the fixed and optimized model
     """
     all_teams = np.arange(n_teams)
-    rng.shuffle(all_teams)
-    subset_teams = np.array_split(all_teams, num_div)
+    if n_free_teams is None:
+        n_free_teams = n_teams // 3
+    subset_teams = rng.choice(all_teams, n_free_teams, replace=False)
+    current_obj = model.objVal
+    fix_teams = np.setdiff1d(all_teams, subset_teams)
+    variables_to_fix = sum(
+        (variables["x"].select(i, "*", "*") for i in fix_teams), []
+    ) + sum((variables["x"].select("*", i, "*") for i in fix_teams), [])
+    # Fix the selected variables to their current values
+    for var in variables_to_fix:
+        var.lb = var.x
+        var.ub = var.x
+    print(f"Fixing teams {fix_teams}.")
+    # Re-optimize the model with the selected variables fixed
+    model.setParam("TimeLimit", time_limit)
+    model.optimize()
+    print("-----------------------------------")
 
-    # Iterate over the variable sets
-    for index2, teams in enumerate(subset_teams):
-        current_obj = model.objVal
-        fix_teams = np.setdiff1d(all_teams, teams)
-        variables_to_fix = sum(
-            (variables["x"].select(i, "*", "*") for i in fix_teams), []
-        ) + sum((variables["x"].select("*", i, "*") for i in fix_teams), [])
-        # Fix the selected variables to their current values
-        for var in variables_to_fix:
-            var.lb = var.x
-            var.ub = var.x
-        print(f"Fixing teams {fix_teams}.")
-        # Re-optimize the model with the selected variables fixed
-        model.setParam("TimeLimit", time_limit)
-        model.optimize()
-        print("-----------------------------------")
+    # Check if the optimization was successful
+    if model.status == gp.GRB.OPTIMAL:
+        print("Optimal solution found with selected teams fixed.")
 
-        # Check if the optimization was successful
-        if model.status == gp.GRB.OPTIMAL:
-            print("Optimal solution found with selected teams fixed.")
-
-        else:
-            print(
-                "Optimization did not converge to an optimal solution with selected teams fixed."
-            )
-        if model.objVal < current_obj:
-            write_sol_xml(
-                model,
-                f"{folder}sols/heuristic_fix_teams_{index2}_sol{index}.xml",
-            )
-        # Relax the selected variables to their original bounds
-        for var in variables_to_fix:
-            home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
-            if home != away:
-                var.lb = 0
-                var.ub = 1
+    else:
+        print(
+            "Optimization did not converge to an optimal solution with selected teams fixed."
+        )
+    if model.objVal < current_obj:
+        write_sol_xml(
+            model,
+            f"{folder}sols/heuristic_fix_teams_sol{index}.xml",
+        )
+    # Relax the selected variables to their original bounds
+    for var in variables_to_fix:
+        home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
+        if home != away:
+            var.lb = 0
+            var.ub = 1
 
 
 def fix_more_weeks_and_optimize_random(
@@ -313,7 +311,7 @@ def fix_more_weeks_and_optimize_random(
     n_slots: int,
     folder: str,
     time_limit: float,
-    num_div: int = 4,
+    n_free_slots: int | None = None,
     rng: np.random.Generator = np.random.default_rng(12345),
     index: int = 1,
 ):
@@ -325,45 +323,42 @@ def fix_more_weeks_and_optimize_random(
     Returns:
         gurobipy.Model: the fixed and optimized model
     """
-
+    if n_free_slots is None:
+        n_free_slots = n_slots // 4
     all_weeks = np.arange(n_slots)
-    rng.shuffle(all_weeks)
-    subset_weeks = np.array_split(all_weeks, num_div)
+    subset_weeks = rng.choice(all_weeks, n_free_slots, replace=False)
     # Iterate over the variable sets
-    for index2, weeks in enumerate(subset_weeks):
-        current_obj = model.objVal
-        fix_weeks = np.setdiff1d(all_weeks, weeks)
-        variables_to_fix = sum(
-            (variables["x"].select("*", "*", i) for i in fix_weeks), []
-        )
-        # Fix the selected variables to their current values
-        for var in variables_to_fix:
-            var.lb = var.x
-            var.ub = var.x
-        print(f"Fixing weeks {fix_weeks}.")
-        model.setParam("TimeLimit", time_limit)
-        # Re-optimize the model with the selected variables fixed
-        model.optimize()
-        print("-----------------------------------")
-        # Check if the optimization was successful
-        if model.status == gp.GRB.OPTIMAL:
-            print("Optimal solution found with selected weeks fixed.")
+    current_obj = model.objVal
+    fix_weeks = np.setdiff1d(all_weeks, subset_weeks)
+    variables_to_fix = sum((variables["x"].select("*", "*", i) for i in fix_weeks), [])
+    # Fix the selected variables to their current values
+    for var in variables_to_fix:
+        var.lb = var.x
+        var.ub = var.x
+    print(f"Fixing weeks {fix_weeks}.")
+    model.setParam("TimeLimit", time_limit)
+    # Re-optimize the model with the selected variables fixed
+    model.optimize()
+    print("-----------------------------------")
+    # Check if the optimization was successful
+    if model.status == gp.GRB.OPTIMAL:
+        print("Optimal solution found with selected weeks fixed.")
 
-        else:
-            print(
-                "Optimization did not converge to an optimal solution with selected weeks fixed."
-            )
-        if model.objVal < current_obj:
-            write_sol_xml(
-                model,
-                f"{folder}sols/heuristic_fix_weeks_{index2}_sol{index}.xml",
-            )
-        # Relax the selected variables to their original bounds
-        for var in variables_to_fix:
-            home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
-            if home != away:
-                var.lb = 0
-                var.ub = 1
+    else:
+        print(
+            "Optimization did not converge to an optimal solution with selected weeks fixed."
+        )
+    if model.objVal < current_obj:
+        write_sol_xml(
+            model,
+            f"{folder}sols/heuristic_fix_weeks_sol{index}.xml",
+        )
+    # Relax the selected variables to their original bounds
+    for var in variables_to_fix:
+        home, away, _ = var.varName.split("[")[1].split("]")[0].split(",")
+        if home != away:
+            var.lb = 0
+            var.ub = 1
 
 
 def fix_more_teams_and_optimize_costliest(
@@ -371,10 +366,12 @@ def fix_more_teams_and_optimize_costliest(
     variables: gp.tupledict,
     n_teams: int,
     folder: str,
-    num_div: int = 4,
+    n_free_teams: int | None = None,
     time_limit: float = 600,
     rng: np.random.Generator = np.random.default_rng(12345),
     index: int = 1,
+    selection_criteria="",
+    obj_variables=[],
 ):
     """Fix and optimize the model.
     Args:
@@ -385,25 +382,35 @@ def fix_more_teams_and_optimize_costliest(
         gurobipy.Model: the fixed and optimized model
     """
     current_obj = model.objVal
+    if n_free_teams is None:
+        n_free_teams = n_teams // 3
     all_teams = np.arange(n_teams)
-
-    (
-        unique_teams,
-        count_teams,
-        _,
-        _,
-    ) = find_costliest_teams_weeks(model)
-    subset_teams = rng.choice(
-        unique_teams,
-        min(len(unique_teams), (n_teams // num_div) + 4),
-        replace=False,
-        p=count_teams / np.sum(count_teams),
-    )
-    fix_teams = np.setdiff1d(all_teams, subset_teams)
-    if len(fix_teams) > n_teams - (n_teams // num_div) + 4:
-        fix_teams = rng.choice(
-            fix_teams, n_teams - (n_teams // num_div) + 4, replace=False
+    if selection_criteria == "all":
+        (
+            unique_teams,
+            count_teams,
+            _,
+            _,
+        ) = find_costliest_teams_weeks(model, obj_variables)
+    else:
+        (
+            unique_teams,
+            count_teams,
+            _,
+            _,
+        ) = find_costliest_teams_weeks_only_ones(model, obj_variables)
+    if len(unique_teams) > 0:
+        subset_teams = rng.choice(
+            unique_teams,
+            min(len(unique_teams), n_free_teams),
+            replace=False,
+            p=count_teams / np.sum(count_teams),
         )
+    else:
+        subset_teams = np.array([])
+    fix_teams = np.setdiff1d(all_teams, subset_teams)
+    if len(fix_teams) > n_teams - n_free_teams:
+        fix_teams = rng.choice(fix_teams, n_teams - n_free_teams, replace=False)
     variables_to_fix = sum(
         (variables["x"].select(i, "*", "*") for i in fix_teams), []
     ) + sum((variables["x"].select("*", i, "*") for i in fix_teams), [])
@@ -443,10 +450,12 @@ def fix_more_weeks_and_optimize_costliest(
     variables: gp.tupledict,
     n_slots: int,
     folder: str,
-    num_div: int = 4,
+    n_free_slots: int | None = None,
     time_limit: float = 300,
     rng: np.random.Generator = np.random.default_rng(12345),
     index: int = 1,
+    selection_criteria="",
+    obj_variables=[],
 ):
     """Fix and optimize the model.
     Args:
@@ -457,22 +466,35 @@ def fix_more_weeks_and_optimize_costliest(
         gurobipy.Model: the fixed and optimized model
     """
     current_obj = model.objVal
+    if n_free_slots is None:
+        n_free_slots = n_slots // 4
     all_weeks = np.arange(n_slots)
-    (
-        _,
-        _,
-        unique_weeks,
-        count_weeks,
-    ) = find_costliest_teams_weeks(model)
-    subset_weeks = rng.choice(
-        unique_weeks,
-        min(len(unique_weeks), n_slots // num_div),
-        replace=False,
-        p=count_weeks / np.sum(count_weeks),
-    )
+    if selection_criteria == "all":
+        (
+            _,
+            _,
+            unique_weeks,
+            count_weeks,
+        ) = find_costliest_teams_weeks(model, obj_variables)
+    else:
+        (
+            _,
+            _,
+            unique_weeks,
+            count_weeks,
+        ) = find_costliest_teams_weeks_only_ones(model, obj_variables)
+    if len(unique_weeks) > 0:
+        subset_weeks = rng.choice(
+            unique_weeks,
+            min(len(unique_weeks), n_free_slots),
+            replace=False,
+            p=count_weeks / np.sum(count_weeks),
+        )
+    else:
+        subset_weeks = np.array([])
     fix_weeks = np.setdiff1d(all_weeks, subset_weeks)
-    if len(fix_weeks) > n_slots - n_slots // num_div:
-        fix_weeks = rng.choice(fix_weeks, n_slots - n_slots // num_div, replace=False)
+    if len(fix_weeks) > n_slots - n_free_slots:
+        fix_weeks = rng.choice(fix_weeks, n_slots - n_free_slots, replace=False)
     variables_to_fix = sum((variables["x"].select("*", "*", i) for i in fix_weeks), [])
     # Fix the selected variables to their current values
     for var in variables_to_fix:
@@ -506,9 +528,9 @@ def fix_more_weeks_and_optimize_costliest(
 
 def find_costliest_teams_weeks(
     model: gp.Model,
+    obj_variables: list,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    variables = model.getVars()
-    non_zero_variables = [var for var in variables if var.X * var.Obj > 0]
+    non_zero_variables = [var for var in obj_variables if var.X * var.Obj > 0]
     non_zero_variables.sort(key=lambda x: x.X * x.Obj, reverse=True)
     teams, weeks = [], []
     for var in non_zero_variables:
@@ -531,6 +553,43 @@ def find_costliest_teams_weeks(
                     teams.extend((team1, team2))
                     weeks.append(week)
                 elif selected_var.VarName[0] in ["a", "h"]:
+                    team, week = (
+                        selected_var.VarName.split("[")[1].split("]")[0].split(",")
+                    )
+                    teams.append(team)
+                    weeks.append(week)
+
+    unique_teams, count_teams = np.unique(teams, return_counts=True)
+    unique_weeks, count_weeks = np.unique(weeks, return_counts=True)
+    return unique_teams.astype(int), count_teams, unique_weeks.astype(int), count_weeks
+
+
+def find_costliest_teams_weeks_only_ones(
+    model: gp.Model, obj_variables: list
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    non_zero_variables = [var for var in obj_variables if var.X * var.Obj > 0]
+    non_zero_variables.sort(key=lambda x: x.X * x.Obj, reverse=True)
+    teams, weeks = [], []
+    for var in non_zero_variables:
+        col = model.getCol(var)
+        for const in col._constrs:
+            row = model.getRow(const)
+            for i in range(row.size()):
+                selected_var = row.getVar(i)
+                if (
+                    selected_var.VarName == var.VarName
+                    or selected_var.VarName[0] == "y"
+                ):
+                    continue
+                elif selected_var.VarName[0] == "x" and selected_var.X > 0:
+                    team1, team2, week = (
+                        selected_var.VarName.split("[")[1].split("]")[0].split(",")
+                    )
+                    if team1 == team2:
+                        continue
+                    teams.extend((team1, team2))
+                    weeks.append(week)
+                elif selected_var.VarName[0] in ["a", "h"] and selected_var.X > 0:
                     team, week = (
                         selected_var.VarName.split("[")[1].split("]")[0].split(",")
                     )
