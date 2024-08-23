@@ -1,6 +1,8 @@
 import numpy as np
-from Utils import cost_function, feasibility_check
+from app.utils import cost_function, feasibility_check
 from typing import Callable
+
+from app.named_tuples import Solution
 
 
 def update_weights(
@@ -45,8 +47,7 @@ def normalize_weights(weights: np.array(float), threshold: float = 0.05) -> np.a
 
 
 def ALNS(
-    init_sol: np.array,
-    init_cost: int,
+    init_sol: Solution,
     probability: list[float],
     operators: list[Callable],
     escape_op_ids: list[int],
@@ -74,35 +75,31 @@ def ALNS(
     (
         feas_sols,
         incumbent,
-        cost_incumb,
         r,
         operators_len_range,
         scores,
         thetas,
         best_sol,
-        best_cost,
         delta,
         last_improvement,
         non_imp_count,
         weights,
         ws,
-    ) = initiate_ALNS(init_sol, init_cost, probability, operators)
-    for itr in range(10000):
+    ) = initiate_ALNS(init_sol, probability, operators)
+    for itr in range(1000):
         if itr == warm_up and np.mean(delta) == 0:
             warm_up = _update_warm_up_number(warm_up)
         if itr < warm_up:
-            best_sol, best_cost, scores, thetas, last_improvement, delta = do_iteration(
+            best_sol, incumbent, scores, thetas, last_improvement, delta = do_iteration(
                 operators,
                 prob,
                 rng,
                 feas_sols,
                 incumbent,
-                cost_incumb,
                 operators_len_range,
                 scores,
                 thetas,
                 best_sol,
-                best_cost,
                 non_imp_count,
                 last_improvement,
                 weights,
@@ -119,7 +116,6 @@ def ALNS(
                     incumbent,
                     scores,
                     best_sol,
-                    best_cost,
                     last_improvement,
                     non_imp_count,
                 ) = apply_escape(
@@ -128,10 +124,8 @@ def ALNS(
                     prob,
                     rng,
                     incumbent,
-                    cost_incumb,
                     thetas,
                     scores,
-                    best_cost,
                     itr,
                 )
 
@@ -140,18 +134,16 @@ def ALNS(
                     warm_up, r, operators_len_range, scores, thetas, weights, ws, itr
                 )
 
-            best_sol, best_cost, scores, thetas, last_improvement, _ = do_iteration(
+            best_sol, incumbent, scores, thetas, last_improvement, _ = do_iteration(
                 operators,
                 prob,
                 rng,
                 feas_sols,
                 incumbent,
-                cost_incumb,
                 operators_len_range,
                 scores,
                 thetas,
                 best_sol,
-                best_cost,
                 non_imp_count,
                 last_improvement,
                 weights,
@@ -160,7 +152,7 @@ def ALNS(
             )
 
             T *= alpha
-    return best_sol, best_cost, last_improvement, ws, feas_sols
+    return best_sol, last_improvement, ws, feas_sols
 
 
 def do_iteration(
@@ -169,12 +161,10 @@ def do_iteration(
     rng,
     feas_sols,
     incumbent,
-    cost_incumb,
     operators_len_range,
     scores,
     thetas,
     best_sol,
-    best_cost,
     non_imp_count,
     last_improvement,
     weights,
@@ -186,32 +176,29 @@ def do_iteration(
     op_id, operator, thetas = choose_operator(
         weights, operators, rng, operators_len_range, thetas
     )
-    new_sol, new_cost, delta_E = apply_operator(
-        prob, rng, incumbent, cost_incumb, operator
-    )
+    new_sol, delta_E = apply_operator(prob, rng, incumbent, operator)
     if delta_E >= 0:
         non_imp_count += 1
-    c, feasiblity = feasibility_check(new_sol, prob)
+    c, feasiblity = "feasible", True  # feasibility_check(new_sol, prob)
     if feasiblity and delta_E < 0:
         scores[op_id] += 1
-        incumbent, cost_incumb = update_sol_cost(new_sol, new_cost)
-        if cost_incumb < best_cost:
+        incumbent = new_sol.copy()
+        if incumbent.total_cost < best_sol.total_cost:
             (
                 scores,
                 best_sol,
-                best_cost,
                 last_improvement,
                 non_imp_count,
-            ) = update_bests(incumbent, cost_incumb, scores, itr, op_id)
+            ) = update_bests(incumbent, scores, itr, op_id)
     elif feasiblity:
         feas_sols.append(new_sol)
         prbb = calc_acc_prb(delta_E, T, phase)
         if rng.uniform() < prbb:
-            incumbent, cost_incumb = update_sol_cost(new_sol, new_cost)
+            incumbent = new_sol.copy()
         if phase == "warm_up":
             delta += [delta_E]
 
-    return best_sol, best_cost, scores, thetas, last_improvement, delta
+    return best_sol, incumbent, scores, thetas, last_improvement, delta
 
 
 def calc_acc_prb(delta_E: int, T: float, phase: str = None) -> float:
@@ -238,31 +225,26 @@ def apply_escape(
     prob,
     rng,
     incumbent,
-    cost_incumb,
     thetas,
     scores,
-    best_cost,
     itr,
 ):
     ops_len = len(escape_op_ids)
     for _ in range(1, 31):
         op_id = rng.choice(ops_len)
         escape = operators[escape_op_ids[op_id]]
-        incumbent, new_cost, _ = apply_operator(
-            prob, rng, incumbent, cost_incumb, escape
-        )
-        if new_cost < best_cost:
+        new_sol, _ = apply_operator(prob, rng, incumbent, escape)
+        if new_sol.total_cost < incumbent.total_cost:
             (
                 scores,
                 best_sol,
-                best_cost,
                 last_improvement,
                 non_imp_count,
-            ) = update_bests(incumbent, cost_incumb, scores, itr, escape_op_ids[op_id])
+            ) = update_bests(incumbent, scores, itr, escape_op_ids[op_id])
             break
     non_imp_count = 0
     thetas[escape_op_ids[op_id]] += 1
-    return incumbent, scores, best_sol, best_cost, last_improvement, non_imp_count
+    return incumbent, scores, best_sol, last_improvement, non_imp_count
 
 
 def calc_alpha(delta, warm_up, T_f):
@@ -278,12 +260,12 @@ def _update_warm_up_number(warm_up):
     return warm_up
 
 
-def update_bests(incumbent, cost_incumb, scores, itr, op_id):
+def update_bests(incumbent, scores, itr, op_id):
     scores[op_id] += 2
-    best_sol, best_cost = update_sol_cost(incumbent, cost_incumb)
+    best_sol = incumbent.copy()
     last_improvement = itr
     non_imp_count = 0
-    return scores, best_sol, best_cost, last_improvement, non_imp_count
+    return scores, best_sol, last_improvement, non_imp_count
 
 
 def update_sol_cost(new_sol, new_cost):
@@ -291,14 +273,12 @@ def update_sol_cost(new_sol, new_cost):
 
 
 def initiate_ALNS(
-    init_sol: np.array,
-    init_cost: int,
+    init_sol: Solution,
     probability: list[float],
     operators: list[Callable],
 ) -> tuple:
-    incumbent = init_sol
+    incumbent = init_sol.copy()
     best_sol = init_sol.copy()
-    cost_incumb = init_cost
     operators_len_range = range(len(operators))
     scores = [0 for _ in operators_len_range]
     thetas = [0 for _ in operators_len_range]
@@ -310,13 +290,11 @@ def initiate_ALNS(
     return (
         [],
         incumbent,
-        cost_incumb,
         0.2,
         operators_len_range,
         scores,
         thetas,
         best_sol,
-        cost_incumb.copy(),
         delta,
         last_improvement,
         non_imp_count,
@@ -328,8 +306,7 @@ def initiate_ALNS(
 def apply_operator(
     prob: dict,
     rng: np.random.Generator,
-    solution: np.array,
-    cost_current: int,
+    solution: Solution,
     operator: Callable,
 ) -> tuple[np.array, int, int]:
     """This function applies the operator on solution and returns new solution, its cost, and difference of costs
@@ -349,9 +326,9 @@ def apply_operator(
         rng,
         prob,
     )
-    new_cost = cost_function(new_sol, prob)
-    delta_E = new_cost - cost_current
-    return new_sol, new_cost, delta_E
+    # new_cost = cost_function(new_sol, prob)
+    delta_E = new_sol.total_cost - solution.total_cost
+    return new_sol, delta_E
 
 
 def choose_operator(

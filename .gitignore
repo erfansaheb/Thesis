@@ -1,0 +1,12 @@
+# *.xml
+*.R
+*.flake8
+*.json
+*.pyc
+*.csv
+*.txt
+lp_files/
+lp_models/
+Gurobi_examples/
+Final_Solutions/
+results/
